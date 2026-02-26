@@ -84,7 +84,7 @@ func presetExample(ctx context.Context) {
 	// Create a SystemPromptPreset configuration
 	// The "claude_code" preset uses the standard Claude Code system prompt
 	preset := types.SystemPromptPreset{
-		Type:   "preset",     // Always "preset" for preset configuration
+		Type:   "preset",      // Always "preset" for preset configuration
 		Preset: "claude_code", // Use the Claude Code default system prompt
 	}
 
@@ -117,7 +117,7 @@ ADDITIONAL INSTRUCTIONS:
 - Provide alternative solutions when appropriate`
 
 	presetWithAppend := types.SystemPromptPreset{
-		Type:   "preset",     // Always "preset" for preset configuration
+		Type:   "preset",      // Always "preset" for preset configuration
 		Preset: "claude_code", // Use the Claude Code default system prompt
 		Append: &appendText,   // Append custom instructions to the preset
 	}

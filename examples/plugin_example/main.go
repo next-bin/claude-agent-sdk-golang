@@ -4,9 +4,10 @@
 // See: https://docs.claude.com/en/docs/claude-code/plugins
 //
 // This example shows:
-// 1. Configuring local plugins
-// 2. Plugin path configuration
-// 3. Using plugins with the SDK
+// 1. Loading a local demo plugin
+// 2. Verifying plugin loading via system messages
+// 3. Configuring multiple plugins
+// 4. Using plugins with other SDK options
 //
 // Prerequisites:
 // - Claude CLI installed: npm install -g @anthropic-ai/claude-code
@@ -17,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
@@ -28,29 +31,41 @@ func main() {
 	fmt.Println("=== Claude Agent SDK Go - Plugin Example ===")
 	fmt.Println()
 
-	// Example 1: Local plugin configuration
-	localPluginExample(ctx)
+	// Example 1: Load and verify demo plugin
+	demoPluginExample(ctx)
 
-	// Example 2: Multiple plugins
+	// Example 2: Multiple plugins configuration
 	multiplePluginsExample(ctx)
 
-	// Example 3: Plugin with other options
+	// Example 3: Plugin with other SDK options
 	pluginWithOptionsExample(ctx)
+
+	// Example 4: Plugin structure reference
+	pluginStructureExample(ctx)
 }
 
-// localPluginExample demonstrates configuring a local plugin.
-func localPluginExample(ctx context.Context) {
-	fmt.Println("--- Example 1: Local Plugin Configuration ---")
-	fmt.Println("Plugins extend the SDK with custom functionality.")
+// getDemoPluginPath returns the path to the demo plugin directory.
+// In a real application, you would use an absolute path or relative path
+// based on your project structure.
+func getDemoPluginPath() string {
+	// Get the directory of this source file
+	_, filename, _, _ := runtime.Caller(0)
+	examplesDir := filepath.Dir(filepath.Dir(filename))
+	pluginPath := filepath.Join(examplesDir, "plugins", "demo-plugin")
+	return pluginPath
+}
+
+// demoPluginExample demonstrates loading the demo plugin and verifying it's loaded.
+func demoPluginExample(ctx context.Context) {
+	fmt.Println("--- Example 1: Load and Verify Demo Plugin ---")
+	fmt.Println("Load a local plugin and check that it's properly registered.")
 	fmt.Println()
 
-	// Configure a local plugin
-	// Plugins are typically directories containing:
-	// - commands/ directory with slash commands
-	// - agents/ directory with custom agents
-	// - MCP server configurations
-	pluginPath := "/path/to/your/plugin"
+	// Get the path to the demo plugin
+	pluginPath := getDemoPluginPath()
+	fmt.Printf("Plugin path: %s\n", pluginPath)
 
+	// Configure the client with the demo plugin
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		Plugins: []types.SdkPluginConfig{
 			{
@@ -58,6 +73,7 @@ func localPluginExample(ctx context.Context) {
 				Path: pluginPath,
 			},
 		},
+		MaxTurns: types.Int(1), // Limit to one turn for quick demo
 	})
 	defer client.Close()
 
@@ -66,18 +82,32 @@ func localPluginExample(ctx context.Context) {
 		return
 	}
 
-	fmt.Println("Plugin configuration:")
-	fmt.Printf("  - Type: local\n")
-	fmt.Printf("  - Path: %s\n", pluginPath)
+	fmt.Println("Plugin configured successfully!")
 	fmt.Println()
-	fmt.Println("Plugin structure expected:")
-	fmt.Println("  your-plugin/")
-	fmt.Println("  ├── commands/")
-	fmt.Println("  │   └── my-command.md    # Custom slash command")
-	fmt.Println("  ├── agents/")
-	fmt.Println("  │   └── my-agent.md       # Custom agent definition")
-	fmt.Println("  └── mcp-servers/")
-	fmt.Println("      └── server.json      # MCP server configuration")
+
+	// The plugin provides a /greet command
+	fmt.Println("Demo plugin provides:")
+	fmt.Println("  - /greet command: A custom greeting command")
+	fmt.Println()
+
+	// To verify the plugin is loaded, send a query and check system messages
+	fmt.Println("To verify plugin loading, check the SystemMessage with subtype 'init'")
+	fmt.Println("The plugins data will contain information about loaded plugins.")
+	fmt.Println()
+
+	// Code pattern for verifying plugin loading:
+	fmt.Println("// Code pattern for verifying plugins:")
+	fmt.Println("// for msg := range msgChan {")
+	fmt.Println("//     if sysMsg, ok := msg.(*types.SystemMessage); ok {")
+	fmt.Println("//         if sysMsg.Subtype == \"init\" {")
+	fmt.Println("//             if plugins, ok := sysMsg.Data[\"plugins\"].([]interface{}); ok {")
+	fmt.Println("//                 for _, p := range plugins {")
+	fmt.Println("//                     // Print loaded plugin info")
+	fmt.Println("//                 }")
+	fmt.Println("//             }")
+	fmt.Println("//         }")
+	fmt.Println("//     }")
+	fmt.Println("// }")
 	fmt.Println()
 }
 
@@ -89,19 +119,17 @@ func multiplePluginsExample(ctx context.Context) {
 
 	// Configure multiple plugins
 	// Each plugin can provide different commands, agents, or MCP servers
+	pluginPath := getDemoPluginPath()
+
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		Plugins: []types.SdkPluginConfig{
 			{
 				Type: "local",
-				Path: "/path/to/code-review-plugin",
+				Path: pluginPath,
 			},
 			{
 				Type: "local",
-				Path: "/path/to/documentation-plugin",
-			},
-			{
-				Type: "local",
-				Path: "/path/to/testing-plugin",
+				Path: "/path/to/another-plugin",
 			},
 		},
 	})
@@ -112,21 +140,15 @@ func multiplePluginsExample(ctx context.Context) {
 		return
 	}
 
-	fmt.Println("Multiple plugins configured:")
-	fmt.Println("  1. code-review-plugin - Code review commands and agents")
-	fmt.Println("  2. documentation-plugin - Documentation generators")
-	fmt.Println("  3. testing-plugin - Test generation and analysis")
+	fmt.Println("Multiple plugins can be configured:")
+	fmt.Println("  1. demo-plugin - Provides /greet command")
+	fmt.Println("  2. another-plugin - Additional functionality")
 	fmt.Println()
 
-	// Example plugin structures
-	fmt.Println("Example: code-review-plugin structure:")
-	fmt.Println("  code-review-plugin/")
-	fmt.Println("  ├── commands/")
-	fmt.Println("  │   ├── review.md         # /review command")
-	fmt.Println("  │   ├── lint.md           # /lint command")
-	fmt.Println("  │   └── security-scan.md  # /security-scan command")
-	fmt.Println("  └── agents/")
-	fmt.Println("      └── reviewer.md        # Code review agent")
+	// Example: Plugin configuration options
+	fmt.Println("Plugin configuration options:")
+	fmt.Println("  - Type: \"local\" for local plugin directories")
+	fmt.Println("  - Path: Absolute or relative path to plugin directory")
 	fmt.Println()
 }
 
@@ -136,13 +158,15 @@ func pluginWithOptionsExample(ctx context.Context) {
 	fmt.Println("Plugins work alongside other SDK configurations.")
 	fmt.Println()
 
+	pluginPath := getDemoPluginPath()
+
 	// Combine plugins with other options
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		// Plugin configuration
 		Plugins: []types.SdkPluginConfig{
 			{
 				Type: "local",
-				Path: "/path/to/custom-tools-plugin",
+				Path: pluginPath,
 			},
 		},
 
@@ -166,7 +190,7 @@ func pluginWithOptionsExample(ctx context.Context) {
 	}
 
 	fmt.Println("Combined configuration:")
-	fmt.Println("  - Plugin: custom-tools-plugin")
+	fmt.Println("  - Plugin: demo-plugin")
 	fmt.Println("  - Model: claude-sonnet-4-20250514")
 	fmt.Println("  - Custom system prompt")
 	fmt.Println("  - Permission mode: acceptEdits")
@@ -174,68 +198,92 @@ func pluginWithOptionsExample(ctx context.Context) {
 
 	// How plugins extend functionality
 	fmt.Println("Plugin capabilities:")
-	fmt.Println("  - Add custom slash commands (e.g., /my-custom-command)")
+	fmt.Println("  - Add custom slash commands (e.g., /greet)")
 	fmt.Println("  - Define specialized agents")
 	fmt.Println("  - Configure MCP servers")
 	fmt.Println("  - Extend tool capabilities")
 	fmt.Println()
 }
 
-// Example plugin command file content:
-// File: commands/my-command.md
-const exampleCommandContent = `
-# My Custom Command
+// pluginStructureExample shows the expected structure of a plugin.
+func pluginStructureExample(ctx context.Context) {
+	fmt.Println("--- Example 4: Plugin Structure Reference ---")
+	fmt.Println("A plugin directory should follow this structure:")
+	fmt.Println()
 
-A custom slash command that does something useful.
+	fmt.Println("demo-plugin/")
+	fmt.Println("├── .claude-plugin/")
+	fmt.Println("│   └── plugin.json       # Plugin metadata (required)")
+	fmt.Println("└── commands/")
+	fmt.Println("    └── greet.md          # Custom slash command /greet")
+	fmt.Println()
 
-## Usage
+	fmt.Println("plugin.json format:")
+	fmt.Println(`{
+  "name": "demo-plugin",
+  "description": "A demo plugin showing how to extend Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "Your Name"
+  }
+}`)
+	fmt.Println()
 
-/my-command [options]
+	fmt.Println("commands/greet.md format:")
+	fmt.Println(`# Greet Command
 
-## Arguments
+This is a custom greeting command from the demo plugin.
 
-- options: Optional arguments for the command
+When the user runs this command, greet them warmly and explain
+that this message came from a custom plugin loaded via the SDK.`)
+	fmt.Println()
 
-## Example
+	fmt.Println("Optional plugin directories:")
+	fmt.Println("  agents/         - Custom agent definitions (.md files)")
+	fmt.Println("  mcp-servers/    - MCP server configurations (.json files)")
+	fmt.Println("  skills/         - Custom skills (.md files)")
+	fmt.Println("  hooks/          - Hook scripts")
+	fmt.Println()
+}
 
-/my-command --verbose
+// runQueryWithPlugin demonstrates running a query with plugin verification.
+// This function is provided as reference for actual usage.
+func runQueryWithPlugin(ctx context.Context, client *claude.Client) {
+	fmt.Println("Running query to verify plugin loading...")
 
-## Implementation
+	msgChan, err := client.Query(ctx, "Hello!")
+	if err != nil {
+		log.Printf("Query failed: %v", err)
+		return
+	}
 
-This command will:
-1. Read the specified file or directory
-2. Process the content
-3. Generate output
-`
-
-// Example plugin agent file content:
-// File: agents/my-agent.md
-const exampleAgentContent = `
-# My Custom Agent
-
-A specialized agent for specific tasks.
-
-## Description
-
-This agent handles:
-- Task type 1
-- Task type 2
-
-## Prompt
-
-You are a specialized agent. Your task is to:
-1. Analyze the input
-2. Process according to specific rules
-3. Generate appropriate output
-
-## Tools
-
-- Read
-- Write
-- Bash
-- Glob
-
-## Model
-
-sonnet
-`
+	for msg := range msgChan {
+		switch m := msg.(type) {
+		case *types.SystemMessage:
+			if m.Subtype == "init" {
+				fmt.Println("System initialized!")
+				if plugins, ok := m.Data["plugins"].([]interface{}); ok {
+					fmt.Printf("Plugins loaded: %d\n", len(plugins))
+					for _, p := range plugins {
+						if plugin, ok := p.(map[string]interface{}); ok {
+							if name, ok := plugin["name"].(string); ok {
+								fmt.Printf("  - %s\n", name)
+							}
+						}
+					}
+				}
+			}
+		case *types.AssistantMessage:
+			for _, block := range m.Content {
+				if text, ok := block.(types.TextBlock); ok {
+					fmt.Printf("Claude: %s\n", text.Text)
+				}
+			}
+		case *types.ResultMessage:
+			fmt.Println("Query completed!")
+			if m.TotalCostUSD != nil {
+				fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
+			}
+		}
+	}
+}

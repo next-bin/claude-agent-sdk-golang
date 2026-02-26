@@ -366,7 +366,7 @@ func TestConvertToHookInput_PostToolUse(t *testing.T) {
 	toolResponse := map[string]interface{}{"output": "file contents"}
 	input := map[string]interface{}{
 		"hook_event_name": "PostToolUse",
-		"tool_name":        "Read",
+		"tool_name":       "Read",
 		"tool_input": map[string]interface{}{
 			"file_path": "/test/file.go",
 		},
@@ -394,7 +394,7 @@ func TestConvertToHookInput_PostToolUse(t *testing.T) {
 func TestConvertToHookInput_PostToolUseFailure(t *testing.T) {
 	input := map[string]interface{}{
 		"hook_event_name": "PostToolUseFailure",
-		"tool_name":        "Bash",
+		"tool_name":       "Bash",
 		"tool_input": map[string]interface{}{
 			"command": "exit 1",
 		},
@@ -513,17 +513,17 @@ func TestHookOutputToMap_SyncOutput_AllFields(t *testing.T) {
 	systemMessage := "Test message"
 	reason := "Test reason"
 	specificOutput := types.PreToolUseHookSpecificOutput{
-		HookEventName:     "PreToolUse",
+		HookEventName:      "PreToolUse",
 		PermissionDecision: &decision,
 	}
 
 	output := types.SyncHookJSONOutput{
-		Continue_:        &continueVal,
-		SuppressOutput:   &suppressOutput,
-		StopReason:       &stopReason,
-		Decision:         &decision,
-		SystemMessage:    &systemMessage,
-		Reason:           &reason,
+		Continue_:          &continueVal,
+		SuppressOutput:     &suppressOutput,
+		StopReason:         &stopReason,
+		Decision:           &decision,
+		SystemMessage:      &systemMessage,
+		Reason:             &reason,
 		HookSpecificOutput: specificOutput,
 	}
 

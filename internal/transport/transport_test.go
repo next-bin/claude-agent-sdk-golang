@@ -456,20 +456,20 @@ func TestBuildCommand_ExtraArgs(t *testing.T) {
 
 func TestBuildCommand_MCPServers(t *testing.T) {
 	tests := []struct {
-		name      string
+		name       string
 		mcpServers interface{}
-		wantInCmd string // Substring expected in command
-		wantEmpty bool   // If true, no --mcp-config should be present
+		wantInCmd  string // Substring expected in command
+		wantEmpty  bool   // If true, no --mcp-config should be present
 	}{
 		{
-			name:      "nil mcp servers",
+			name:       "nil mcp servers",
 			mcpServers: nil,
-			wantEmpty: true,
+			wantEmpty:  true,
 		},
 		{
-			name:      "string mcp config path",
+			name:       "string mcp config path",
 			mcpServers: "/path/to/mcp-config.json",
-			wantInCmd: "--mcp-config",
+			wantInCmd:  "--mcp-config",
 		},
 		{
 			name: "map mcp servers",
@@ -557,31 +557,31 @@ func TestBuildCommand_ThinkingConfigPrecedence(t *testing.T) {
 		wantMaxThinkingArgs string
 	}{
 		{
-			name:              "only MaxThinkingTokens set",
-			maxThinkingTokens: intPtr(10000),
+			name:                "only MaxThinkingTokens set",
+			maxThinkingTokens:   intPtr(10000),
 			wantMaxThinkingArgs: "10000",
 		},
 		{
-			name: "Thinking enabled overrides MaxThinkingTokens",
-			maxThinkingTokens: intPtr(10000),
-			thinking:          types.ThinkingConfigEnabled{Type: "enabled", BudgetTokens: 5000},
+			name:                "Thinking enabled overrides MaxThinkingTokens",
+			maxThinkingTokens:   intPtr(10000),
+			thinking:            types.ThinkingConfigEnabled{Type: "enabled", BudgetTokens: 5000},
 			wantMaxThinkingArgs: "5000",
 		},
 		{
-			name: "Thinking disabled overrides MaxThinkingTokens",
-			maxThinkingTokens: intPtr(10000),
-			thinking:          types.ThinkingConfigDisabled{Type: "disabled"},
+			name:                "Thinking disabled overrides MaxThinkingTokens",
+			maxThinkingTokens:   intPtr(10000),
+			thinking:            types.ThinkingConfigDisabled{Type: "disabled"},
 			wantMaxThinkingArgs: "0",
 		},
 		{
-			name: "Thinking adaptive with no MaxThinkingTokens uses default",
-			thinking: types.ThinkingConfigAdaptive{Type: "adaptive"},
+			name:                "Thinking adaptive with no MaxThinkingTokens uses default",
+			thinking:            types.ThinkingConfigAdaptive{Type: "adaptive"},
 			wantMaxThinkingArgs: "32000",
 		},
 		{
-			name: "Thinking adaptive with MaxThinkingTokens uses MaxThinkingTokens",
-			maxThinkingTokens: intPtr(20000),
-			thinking:          types.ThinkingConfigAdaptive{Type: "adaptive"},
+			name:                "Thinking adaptive with MaxThinkingTokens uses MaxThinkingTokens",
+			maxThinkingTokens:   intPtr(20000),
+			thinking:            types.ThinkingConfigAdaptive{Type: "adaptive"},
 			wantMaxThinkingArgs: "20000",
 		},
 	}
@@ -1055,10 +1055,10 @@ func TestNewSubprocessCLITransport_Options(t *testing.T) {
 	env := map[string]string{"TEST_VAR": "test_value"}
 
 	options := &types.ClaudeAgentOptions{
-		CLIPath:        cliPath,
-		CWD:            cwd,
-		MaxBufferSize:  &maxBufferSize,
-		Env:            env,
+		CLIPath:       cliPath,
+		CWD:           cwd,
+		MaxBufferSize: &maxBufferSize,
+		Env:           env,
 	}
 
 	transport, err := NewSubprocessCLITransport("test prompt", options, WithSkipVersionCheck(true))
@@ -1110,8 +1110,8 @@ func TestNewSubprocessCLITransport_CWDTypes(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		cwd    interface{}
+		name    string
+		cwd     interface{}
 		wantCwd string
 	}{
 		{
@@ -1383,11 +1383,11 @@ func TestVersionComparison(t *testing.T) {
 
 func TestBuildCommand_EnvironmentVariables(t *testing.T) {
 	tests := []struct {
-		name                  string
-		env                   map[string]string
-		enableFileCheckpoint  bool
-		wantEnvVars           []string
-		wantNotEnvVars        []string
+		name                 string
+		env                  map[string]string
+		enableFileCheckpoint bool
+		wantEnvVars          []string
+		wantNotEnvVars       []string
 	}{
 		{
 			name:                 "default environment",

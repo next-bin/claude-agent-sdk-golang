@@ -113,9 +113,9 @@ func demoAllowedTools(ctx context.Context) {
 	// Restrict agent to only use Read and Glob tools
 	// The agent cannot use Bash, Write, Edit, or any other tools
 	allowedTools := []string{
-		"Read",  // Allow reading files
-		"Glob",  // Allow searching for files by pattern
-		"Grep",  // Allow searching file contents
+		"Read", // Allow reading files
+		"Glob", // Allow searching for files by pattern
+		"Grep", // Allow searching file contents
 	}
 
 	options := &types.ClaudeAgentOptions{

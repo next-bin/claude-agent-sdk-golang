@@ -14,15 +14,15 @@ import (
 
 // mockTransport implements the Transport interface for testing.
 type mockTransport struct {
-	writeCalls      []string
-	writeErr        error
-	endInputCalled  bool
-	endInputErr     error
-	closeCalled     bool
-	closeErr        error
-	messages        chan map[string]interface{}
-	writeBlock      chan struct{} // Used to block writes for testing
-	mu              sync.Mutex
+	writeCalls     []string
+	writeErr       error
+	endInputCalled bool
+	endInputErr    error
+	closeCalled    bool
+	closeErr       error
+	messages       chan map[string]interface{}
+	writeBlock     chan struct{} // Used to block writes for testing
+	mu             sync.Mutex
 }
 
 func newMockTransport() *mockTransport {
@@ -205,10 +205,12 @@ func TestNewQuery(t *testing.T) {
 			wantTimeout:       40 * time.Second,
 		},
 		{
-			name:              "all fields populated",
-			transport:         newMockTransport(),
-			isStreamingMode:   true,
-			canUseTool:        func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) { return nil, nil },
+			name:            "all fields populated",
+			transport:       newMockTransport(),
+			isStreamingMode: true,
+			canUseTool: func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
+				return nil, nil
+			},
 			hooks:             map[string][]HookMatcher{"PostToolUse": {{Matcher: "Write"}}},
 			sdkMcpServers:     map[string]McpServer{"server": newMockMcpServer("server", "1.0")},
 			initializeTimeout: 25 * time.Second,
@@ -557,7 +559,7 @@ func TestHandleToolPermissionRequest(t *testing.T) {
 						"type": "addRules",
 						"rules": []interface{}{
 							map[string]interface{}{
-								"toolName":   "Bash",
+								"toolName":    "Bash",
 								"ruleContent": "ls",
 							},
 						},
@@ -739,9 +741,9 @@ func TestHandleHookCallbackRequest(t *testing.T) {
 				}
 			},
 			requestData: map[string]interface{}{
-				"callback_id":  "test-callback",
-				"input":        map[string]interface{}{},
-				"tool_use_id":  "", // Empty string
+				"callback_id": "test-callback",
+				"input":       map[string]interface{}{},
+				"tool_use_id": "", // Empty string
 			},
 			wantErr: false,
 		},
@@ -789,15 +791,15 @@ func TestHandleMCPMessageRequest(t *testing.T) {
 		validate     func(t *testing.T, resp map[string]interface{})
 	}{
 		{
-			name:         "missing server_name",
-			requestData:  map[string]interface{}{"message": map[string]interface{}{}},
-			wantErr:      true,
+			name:        "missing server_name",
+			requestData: map[string]interface{}{"message": map[string]interface{}{}},
+			wantErr:     true,
 			errContains: "missing server_name",
 		},
 		{
-			name:         "missing message",
-			requestData:  map[string]interface{}{"server_name": "test-server"},
-			wantErr:      true,
+			name:        "missing message",
+			requestData: map[string]interface{}{"server_name": "test-server"},
+			wantErr:     true,
 			errContains: "missing server_name or message",
 		},
 		{
@@ -1113,17 +1115,17 @@ func TestConvertHookOutputForCLI(t *testing.T) {
 		{
 			name: "complex hook output",
 			input: map[string]interface{}{
-				"async_":          true,
-				"continue_":       true,
-				"suppressOutput":  true,
-				"stopReason":      "user_request",
-				"decision":        "allow",
+				"async_":            true,
+				"continue_":         true,
+				"suppressOutput":    true,
+				"stopReason":        "user_request",
+				"decision":          "allow",
 				"additionalContext": "extra info",
 			},
 			expected: map[string]interface{}{
 				"async":             true,
 				"continue":          true,
-				"suppressOutput":   true,
+				"suppressOutput":    true,
 				"stopReason":        "user_request",
 				"decision":          "allow",
 				"additionalContext": "extra info",
@@ -1290,7 +1292,7 @@ func TestParsePermissionUpdate(t *testing.T) {
 				"behavior":    "allow",
 				"rules": []interface{}{
 					map[string]interface{}{
-						"toolName":   "Bash",
+						"toolName":    "Bash",
 						"ruleContent": "ls",
 					},
 				},

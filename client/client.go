@@ -454,10 +454,10 @@ func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...str
 	// Handle string prompts
 	if str, ok := prompt.(string); ok {
 		message := map[string]interface{}{
-			"type":              "user",
-			"message":           map[string]interface{}{"role": "user", "content": str},
+			"type":               "user",
+			"message":            map[string]interface{}{"role": "user", "content": str},
 			"parent_tool_use_id": nil,
-			"session_id":        sid,
+			"session_id":         sid,
 		}
 		data, _ := json.Marshal(message)
 		if err := c.transport.Write(ctx, string(data)+"\n"); err != nil {

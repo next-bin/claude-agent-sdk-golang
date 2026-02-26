@@ -202,7 +202,7 @@ func createClientWithDenyMessages() *client.Client {
 
 			// Critical tools that should interrupt the conversation
 			criticalDeniedTools := map[string]string{
-				"Skill":      "Skill execution is disabled for security reasons. This action cannot be undone.",
+				"Skill":        "Skill execution is disabled for security reasons. This action cannot be undone.",
 				"NotebookEdit": "Notebook editing requires elevated permissions. Contact administrator.",
 			}
 
@@ -297,19 +297,19 @@ func createClientWithComprehensiveHandler() *client.Client {
 
 			// Define tool categories
 			alwaysAllowed := map[string]bool{
-				"Read":  true,
-				"Glob":  true,
-				"Grep":  true,
+				"Read": true,
+				"Glob": true,
+				"Grep": true,
 			}
 
 			requiresApproval := map[string]bool{
-				"Bash": true,
-				"Edit": true,
+				"Bash":  true,
+				"Edit":  true,
 				"Write": true,
 			}
 
 			alwaysDenied := map[string]bool{
-				"Skill":       true,
+				"Skill":        true,
 				"NotebookEdit": true,
 			}
 

@@ -684,7 +684,7 @@ func TestPreToolUseHookSpecificOutputJSON(t *testing.T) {
 
 	output := PreToolUseHookSpecificOutput{
 		HookEventName:            "PreToolUse",
-		PermissionDecision:        &decision,
+		PermissionDecision:       &decision,
 		PermissionDecisionReason: &reason,
 		UpdatedInput:             updatedInput,
 		AdditionalContext:        &additionalContext,

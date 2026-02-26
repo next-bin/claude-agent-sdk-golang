@@ -129,17 +129,17 @@ type (
 	ToolPermissionContext = types.ToolPermissionContext
 
 	// Hook types
-	HookEvent   = types.HookEvent
-	HookMatcher = types.HookMatcher
-	HookInput   = types.HookInput
-	HookContext = types.HookContext
+	HookEvent    = types.HookEvent
+	HookMatcher  = types.HookMatcher
+	HookInput    = types.HookInput
+	HookContext  = types.HookContext
 	HookCallback = types.HookCallback
 
 	// MCP types
 	McpServerConfig      = types.McpServerConfig
 	McpStdioServerConfig = types.McpStdioServerConfig
-	McpSSEServerConfig  = types.McpSSEServerConfig
-	McpHttpServerConfig = types.McpHttpServerConfig
+	McpSSEServerConfig   = types.McpSSEServerConfig
+	McpHttpServerConfig  = types.McpHttpServerConfig
 
 	// Agent types
 	AgentDefinition = types.AgentDefinition
