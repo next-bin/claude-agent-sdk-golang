@@ -96,7 +96,57 @@ type (
 
 	// AssistantMessage represents a message from the assistant.
 	AssistantMessage = types.AssistantMessage
+
+	// ResultMessage represents the final result of a conversation.
+	ResultMessage = types.ResultMessage
+
+	// UserMessage represents a message from the user.
+	UserMessage = types.UserMessage
+
+	// SystemMessage represents a system message.
+	SystemMessage = types.SystemMessage
+
+	// StreamEvent represents a streaming event.
+	StreamEvent = types.StreamEvent
+
+	// ToolUseBlock represents a tool use content block.
+	ToolUseBlock = types.ToolUseBlock
+
+	// ToolResultBlock represents a tool result content block.
+	ToolResultBlock = types.ToolResultBlock
+
+	// TextBlock represents a text content block.
+	TextBlock = types.TextBlock
+
+	// ThinkingBlock represents a thinking content block.
+	ThinkingBlock = types.ThinkingBlock
+
+	// Permission types
+	PermissionResult      = types.PermissionResult
+	PermissionResultAllow = types.PermissionResultAllow
+	PermissionResultDeny  = types.PermissionResultDeny
+	PermissionUpdate      = types.PermissionUpdate
+	ToolPermissionContext = types.ToolPermissionContext
+
+	// Hook types
+	HookEvent   = types.HookEvent
+	HookMatcher = types.HookMatcher
+	HookInput   = types.HookInput
+	HookContext = types.HookContext
+	HookCallback = types.HookCallback
+
+	// MCP types
+	McpServerConfig      = types.McpServerConfig
+	McpStdioServerConfig = types.McpStdioServerConfig
+	McpSSEServerConfig  = types.McpSSEServerConfig
+	McpHttpServerConfig = types.McpHttpServerConfig
+
+	// Agent types
+	AgentDefinition = types.AgentDefinition
 )
+
+// Client is an alias for the client type.
+type Client = client.Client
 
 // Re-export errors for convenience.
 var (
