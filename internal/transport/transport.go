@@ -549,7 +549,15 @@ func (t *SubprocessCLITransport) Connect(ctx context.Context) error {
 	}
 
 	// Merge environment variables: system -> user -> SDK required
-	processEnv := os.Environ()
+	// Start with system environment but filter out CLAUDECODE to allow nested SDK sessions
+	processEnv := []string{}
+	for _, env := range os.Environ() {
+		// Skip CLAUDECODE to allow running SDK inside Claude Code session
+		if strings.HasPrefix(env, "CLAUDECODE=") {
+			continue
+		}
+		processEnv = append(processEnv, env)
+	}
 	for k, v := range t.options.Env {
 		processEnv = append(processEnv, fmt.Sprintf("%s=%s", k, v))
 	}

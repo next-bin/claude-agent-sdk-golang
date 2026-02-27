@@ -179,6 +179,39 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		return err
 	}
 
+	// Handle prompt input - send user message after initialize (matching Python SDK behavior)
+	if len(prompt) > 0 {
+		switch p := prompt[0].(type) {
+		case string:
+			// For string prompts, write user message to stdin after initialize
+			userMessage := map[string]interface{}{
+				"type":               "user",
+				"session_id":         "",
+				"message":            map[string]interface{}{"role": "user", "content": p},
+				"parent_tool_use_id": nil,
+			}
+			data, err := json.Marshal(userMessage)
+			if err != nil {
+				return fmt.Errorf("failed to marshal user message: %w", err)
+			}
+			if err := c.transport.Write(ctx, string(data)+"\n"); err != nil {
+				return fmt.Errorf("failed to write user message: %w", err)
+			}
+			// End input after sending the prompt
+			if err := c.transport.EndInput(ctx); err != nil {
+				return fmt.Errorf("failed to end input: %w", err)
+			}
+		case chan map[string]interface{}:
+			// For channel prompts, stream input in background
+			go func() {
+				for msg := range p {
+					data, _ := json.Marshal(msg)
+					c.transport.Write(ctx, string(data)+"\n")
+				}
+			}()
+		}
+	}
+
 	c.connected = true
 	return nil
 }

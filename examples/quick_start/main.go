@@ -31,14 +31,16 @@ func main() {
 
 	// Using a client with custom options
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String("sonnet"),
 	})
 	defer client.Close()
 
-	msgChan2, err := client.Query(ctx, "Tell me a short joke.")
-	if err != nil {
-		log.Fatalf("Client query failed: %v", err)
+	// Connect the client before using it
+	if err := client.Connect(ctx, "Tell me a short joke."); err != nil {
+		log.Fatalf("Connect failed: %v", err)
 	}
+
+	msgChan2 := client.ReceiveMessages(ctx)
 
 	for msg := range msgChan2 {
 		fmt.Printf("Joke: %v\n", msg)
