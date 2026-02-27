@@ -64,9 +64,10 @@ func basicAgentExample(ctx context.Context) {
 	// Define a simple code review agent
 	// This agent specializes in reviewing code for issues and improvements
 	codeReviewAgent := types.AgentDefinition{
-		Description: "A code review specialist that analyzes code for bugs, style issues, and improvements",
-		Prompt:      "You are a code review expert. Focus on identifying bugs, security issues, and code quality improvements. Be concise and actionable.",
-		Tools:       []string{"Read", "Grep", "Glob"}, // Agent can only use file reading tools
+		Description: "Reviews code for best practices and potential issues",
+		Prompt:      "You are a code reviewer. Analyze code for bugs, performance issues, security vulnerabilities, and adherence to best practices. Provide constructive feedback.",
+		Tools:       []string{"Read", "Grep"}, // Agent can only use file reading tools
+		Model:       types.String("sonnet"),
 	}
 
 	// Configure ClaudeAgentOptions with the agent
@@ -76,60 +77,86 @@ func basicAgentExample(ctx context.Context) {
 		Agents: map[string]types.AgentDefinition{
 			"code-reviewer": codeReviewAgent,
 		},
+		MaxTurns: types.Int(2),
 	}
 
 	// Create client with agent configuration
 	client := claude.NewClientWithOptions(options)
 	defer client.Close()
 
-	fmt.Println("Configured code-reviewer agent with Read, Grep, Glob tools")
-	fmt.Printf("Options: %+v\n", options.Agents)
-	_ = ctx // ctx would be used in actual query
+	fmt.Println("Configured code-reviewer agent with Read, Grep tools")
+	fmt.Println()
+
+	// Uncomment to run an actual query:
+	if err := client.Connect(ctx); err != nil {
+		log.Printf("Failed to connect: %v", err)
+		return
+	}
+
+	msgChan, err := client.Query(ctx, "Use the code-reviewer agent to review the code in main.go")
+	if err != nil {
+		log.Printf("Query failed: %v", err)
+		return
+	}
+
+	for msg := range msgChan {
+		handleMessage(msg)
+	}
 }
 
 // multipleAgentsExample shows how to configure multiple specialized agents.
 func multipleAgentsExample(ctx context.Context) {
 	// Define multiple agents, each with a specific role
 
-	// 1. Research agent - gathers information
-	researchAgent := types.AgentDefinition{
-		Description: "Research agent that searches and summarizes information",
-		Prompt:      "You are a research specialist. Your job is to search for information, analyze findings, and provide concise summaries. Focus on accuracy and relevance.",
-		Tools:       []string{"Bash", "Read", "Grep", "Glob"},
+	// 1. Analyzer agent - examines code structure
+	analyzerAgent := types.AgentDefinition{
+		Description: "Analyzes code structure and patterns",
+		Prompt:      "You are a code analyzer. Examine code structure, patterns, and architecture.",
+		Tools:       []string{"Read", "Grep", "Glob"},
 	}
 
-	// 2. Developer agent - writes and modifies code
-	developerAgent := types.AgentDefinition{
-		Description: "Developer agent that writes, modifies, and refactors code",
-		Prompt:      "You are an expert developer. Write clean, efficient, well-documented code. Follow best practices and include appropriate error handling.",
-		Tools:       []string{"Read", "Write", "Edit", "Bash"},
-	}
-
-	// 3. Tester agent - writes and runs tests
+	// 2. Tester agent - creates and runs tests
 	testerAgent := types.AgentDefinition{
-		Description: "Testing specialist that writes tests and verifies functionality",
-		Prompt:      "You are a testing expert. Write comprehensive tests including unit tests, integration tests, and edge cases. Focus on code coverage and reliability.",
-		Tools:       []string{"Read", "Write", "Edit", "Bash"},
+		Description: "Creates and runs tests",
+		Prompt:      "You are a testing expert. Write comprehensive tests and ensure code quality.",
+		Tools:       []string{"Read", "Write", "Bash"},
+		Model:       types.String("sonnet"),
 	}
 
 	// Configure all agents in ClaudeAgentOptions
 	options := &types.ClaudeAgentOptions{
 		Model: types.String("claude-sonnet-4-20250514"),
 		Agents: map[string]types.AgentDefinition{
-			"researcher": researchAgent,
-			"developer":  developerAgent,
-			"tester":     testerAgent,
+			"analyzer": analyzerAgent,
+			"tester":   testerAgent,
 		},
+		SettingSources: []types.SettingSource{types.SettingSourceUser, types.SettingSourceProject},
+		MaxTurns:       types.Int(2),
 	}
 
 	client := claude.NewClientWithOptions(options)
 	defer client.Close()
 
-	fmt.Println("Configured 3 specialized agents:")
-	fmt.Println("  - researcher: for information gathering")
-	fmt.Println("  - developer: for code writing and modification")
+	fmt.Println("Configured 2 specialized agents:")
+	fmt.Println("  - analyzer: for code structure analysis")
 	fmt.Println("  - tester: for test creation and verification")
-	_ = ctx
+	fmt.Println()
+
+	// Uncomment to run an actual query:
+	if err := client.Connect(ctx); err != nil {
+		log.Printf("Failed to connect: %v", err)
+		return
+	}
+
+	msgChan, err := client.Query(ctx, "Use the analyzer agent to find all Go files in the current directory")
+	if err != nil {
+		log.Printf("Query failed: %v", err)
+		return
+	}
+
+	for msg := range msgChan {
+		handleMessage(msg)
+	}
 }
 
 // customModelAgentExample demonstrates agents with different model configurations.

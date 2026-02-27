@@ -7,19 +7,26 @@
 //
 // Example:
 //
-//	// Create a simple calculator tool
-//	addTool := sdkmcp.Tool("add", "Add two numbers", map[string]interface{}{
-//	    "type": "object",
-//	    "properties": map[string]interface{}{
-//	        "a": map[string]interface{}{"type": "number"},
-//	        "b": map[string]interface{}{"type": "number"},
-//	    },
-//	    "required": []string{"a", "b"},
-//	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
-//	    a, _ := args["a"].(float64)
-//	    b, _ := args["b"].(float64)
-//	    return sdkmcp.TextResult(fmt.Sprintf("Result: %.2f", a+b)), nil
-//	})
+//	// Create a simple calculator tool using schema helpers
+//	addTool := sdkmcp.Tool("add", "Add two numbers",
+//	    sdkmcp.Schema(map[string]interface{}{
+//	        "a": sdkmcp.NumberProperty("First number"),
+//	        "b": sdkmcp.NumberProperty("Second number"),
+//	    }, []string{"a", "b"}),
+//	    func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+//	        a, _ := args["a"].(float64)
+//	        b, _ := args["b"].(float64)
+//	        return sdkmcp.TextResult(fmt.Sprintf("Result: %.2f", a+b)), nil
+//	    })
+//
+//	// Or use SimpleSchema for even more concise syntax:
+//	addTool := sdkmcp.Tool("add", "Add two numbers",
+//	    sdkmcp.SimpleSchema(map[string]string{"a": "number", "b": "number"}),
+//	    func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+//	        a, _ := args["a"].(float64)
+//	        b, _ := args["b"].(float64)
+//	        return sdkmcp.TextResult(fmt.Sprintf("Result: %.2f", a+b)), nil
+//	    })
 //
 //	// Create the server
 //	server := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{addTool})
@@ -40,6 +47,278 @@ import (
 	"encoding/base64"
 	"fmt"
 )
+
+// ============================================================================
+// Schema Helpers
+// ============================================================================
+
+// StringProperty creates a JSON Schema property definition for a string type.
+//
+// This is a convenience function for defining string parameters in tool schemas.
+// It returns a map that can be used as a property value in Schema() or directly
+// in a manually constructed input schema.
+//
+// Parameters:
+//   - description: A human-readable description of the parameter
+//
+// Example:
+//
+//	properties := map[string]interface{}{
+//	    "name": sdkmcp.StringProperty("The user's name"),
+//	}
+func StringProperty(description string) map[string]interface{} {
+	return map[string]interface{}{
+		"type":        "string",
+		"description": description,
+	}
+}
+
+// NumberProperty creates a JSON Schema property definition for a number type.
+//
+// Number accepts both integers and floating-point values. Use IntegerProperty
+// if you need to restrict to whole numbers only.
+//
+// Parameters:
+//   - description: A human-readable description of the parameter
+//
+// Example:
+//
+//	properties := map[string]interface{}{
+//	    "amount": sdkmcp.NumberProperty("The payment amount in dollars"),
+//	}
+func NumberProperty(description string) map[string]interface{} {
+	return map[string]interface{}{
+		"type":        "number",
+		"description": description,
+	}
+}
+
+// IntegerProperty creates a JSON Schema property definition for an integer type.
+//
+// Integer only accepts whole numbers. Use NumberProperty if you need to accept
+// floating-point values.
+//
+// Parameters:
+//   - description: A human-readable description of the parameter
+//
+// Example:
+//
+//	properties := map[string]interface{}{
+//	    "count": sdkmcp.IntegerProperty("Number of items to retrieve"),
+//	}
+func IntegerProperty(description string) map[string]interface{} {
+	return map[string]interface{}{
+		"type":        "integer",
+		"description": description,
+	}
+}
+
+// BooleanProperty creates a JSON Schema property definition for a boolean type.
+//
+// Parameters:
+//   - description: A human-readable description of the parameter
+//
+// Example:
+//
+//	properties := map[string]interface{}{
+//	    "verbose": sdkmcp.BooleanProperty("Whether to output detailed logs"),
+//	}
+func BooleanProperty(description string) map[string]interface{} {
+	return map[string]interface{}{
+		"type":        "boolean",
+		"description": description,
+	}
+}
+
+// ArrayProperty creates a JSON Schema property definition for an array type.
+//
+// Arrays in JSON Schema require an "items" schema that defines the type of
+// each element in the array.
+//
+// Parameters:
+//   - items: The schema for items in the array (use property helpers like StringProperty)
+//   - description: A human-readable description of the parameter
+//
+// Example:
+//
+//	properties := map[string]interface{}{
+//	    "tags": sdkmcp.ArrayProperty(
+//	        sdkmcp.StringProperty("A tag name"),
+//	        "List of tags to apply",
+//	    ),
+//	    "scores": sdkmcp.ArrayProperty(
+//	        sdkmcp.NumberProperty("A score value"),
+//	        "List of numeric scores",
+//	    ),
+//	}
+func ArrayProperty(items map[string]interface{}, description string) map[string]interface{} {
+	return map[string]interface{}{
+		"type":        "array",
+		"items":       items,
+		"description": description,
+	}
+}
+
+// ObjectProperty creates a JSON Schema property definition for a nested object type.
+//
+// Use this for properties that themselves contain structured data. The properties
+// parameter defines the schema for the nested object's fields, and required lists
+// which fields must be present.
+//
+// Parameters:
+//   - properties: Map of property names to their schema definitions
+//   - required: List of property names that are required within this object
+//   - description: A human-readable description of the parameter
+//
+// Example:
+//
+//	properties := map[string]interface{}{
+//	    "address": sdkmcp.ObjectProperty(
+//	        map[string]interface{}{
+//	            "street":  sdkmcp.StringProperty("Street address"),
+//	            "city":    sdkmcp.StringProperty("City name"),
+//	            "zipcode": sdkmcp.StringProperty("Postal code"),
+//	        },
+//	        []string{"street", "city"},
+//	        "User's address information",
+//	    ),
+//	}
+func ObjectProperty(properties map[string]interface{}, required []string, description string) map[string]interface{} {
+	schema := map[string]interface{}{
+		"type":        "object",
+		"properties":  properties,
+		"description": description,
+	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return schema
+}
+
+// Schema creates a complete JSON Schema for tool input parameters.
+//
+// This is the main builder function for creating tool input schemas. It wraps
+// the property definitions in the required object structure with type "object"
+// and specifies which properties are required.
+//
+// Parameters:
+//   - properties: Map of parameter names to their schema definitions
+//   - required: List of parameter names that must be provided
+//
+// Example:
+//
+//	// Simple tool with two required number parameters
+//	schema := sdkmcp.Schema(map[string]interface{}{
+//	    "a": sdkmcp.NumberProperty("First number"),
+//	    "b": sdkmcp.NumberProperty("Second number"),
+//	}, []string{"a", "b"})
+//
+//	// Tool with optional parameters
+//	schema := sdkmcp.Schema(map[string]interface{}{
+//	    "query":    sdkmcp.StringProperty("Search query"),
+//	    "limit":    sdkmcp.IntegerProperty("Max results (optional)"),
+//	    "verbose":  sdkmcp.BooleanProperty("Enable verbose output (optional)"),
+//	}, []string{"query"})
+func Schema(properties map[string]interface{}, required []string) map[string]interface{} {
+	schema := map[string]interface{}{
+		"type":       "object",
+		"properties": properties,
+	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return schema
+}
+
+// SimpleSchema creates a JSON Schema from a simple type map.
+//
+// This function provides a concise way to define schemas when you don't need
+// descriptions for individual properties. It's inspired by Python SDK's
+// type-to-schema conversion.
+//
+// Supported type strings:
+//   - "string": String type
+//   - "number": Number type (accepts integers and floats)
+//   - "integer": Integer type (whole numbers only)
+//   - "boolean": Boolean type
+//   - "string[]": Array of strings
+//   - "number[]": Array of numbers
+//   - "integer[]": Array of integers
+//   - "boolean[]": Array of booleans
+//
+// All properties are marked as required by default.
+//
+// Example:
+//
+//	// Simple schema with multiple types
+//	schema := sdkmcp.SimpleSchema(map[string]string{
+//	    "name":    "string",
+//	    "age":     "integer",
+//	    "active":  "boolean",
+//	    "score":   "number",
+//	    "tags":    "string[]",
+//	    "scores":  "number[]",
+//	})
+//
+//	// Equivalent to:
+//	schema := sdkmcp.Schema(map[string]interface{}{
+//	    "name":   sdkmcp.StringProperty(""),
+//	    "age":    sdkmcp.IntegerProperty(""),
+//	    "active": sdkmcp.BooleanProperty(""),
+//	    "score":  sdkmcp.NumberProperty(""),
+//	    "tags":   sdkmcp.ArrayProperty(sdkmcp.StringProperty(""), ""),
+//	    "scores": sdkmcp.ArrayProperty(sdkmcp.NumberProperty(""), ""),
+//	}, []string{"name", "age", "active", "score", "tags", "scores"})
+func SimpleSchema(types map[string]string) map[string]interface{} {
+	properties := make(map[string]interface{})
+	required := make([]string, 0, len(types))
+
+	for name, typeStr := range types {
+		properties[name] = simplePropertyFromType(typeStr)
+		required = append(required, name)
+	}
+
+	return Schema(properties, required)
+}
+
+// simplePropertyFromType creates a property schema from a type string.
+// It handles both basic types and array types (e.g., "string[]").
+func simplePropertyFromType(typeStr string) map[string]interface{} {
+	// Check for array type (e.g., "string[]", "number[]")
+	if len(typeStr) > 2 && typeStr[len(typeStr)-2:] == "[]" {
+		baseType := typeStr[:len(typeStr)-2]
+		var items map[string]interface{}
+		switch baseType {
+		case "string":
+			items = map[string]interface{}{"type": "string"}
+		case "number":
+			items = map[string]interface{}{"type": "number"}
+		case "integer":
+			items = map[string]interface{}{"type": "integer"}
+		case "boolean":
+			items = map[string]interface{}{"type": "boolean"}
+		default:
+			// Unknown array type, default to string items
+			items = map[string]interface{}{"type": "string"}
+		}
+		return map[string]interface{}{
+			"type":  "array",
+			"items": items,
+		}
+	}
+
+	// Handle basic types
+	var propType string
+	switch typeStr {
+	case "string", "number", "integer", "boolean":
+		propType = typeStr
+	default:
+		// Unknown type, default to string
+		propType = "string"
+	}
+
+	return map[string]interface{}{"type": propType}
+}
 
 // ============================================================================
 // Content Block Types
@@ -214,7 +493,30 @@ func WithAnnotations(annotations *ToolAnnotations) ToolOption {
 //   - handler: Function that executes the tool logic
 //   - opts: Optional configuration (e.g., WithAnnotations)
 //
-// Example:
+// Example using schema helpers (recommended):
+//
+//	addTool := sdkmcp.Tool("add", "Add two numbers",
+//	    sdkmcp.Schema(map[string]interface{}{
+//	        "a": sdkmcp.NumberProperty("First number"),
+//	        "b": sdkmcp.NumberProperty("Second number"),
+//	    }, []string{"a", "b"}),
+//	    func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+//	        a, _ := args["a"].(float64)
+//	        b, _ := args["b"].(float64)
+//	        return sdkmcp.TextResult(fmt.Sprintf("%.2f", a+b)), nil
+//	    })
+//
+// Example using SimpleSchema (most concise):
+//
+//	addTool := sdkmcp.Tool("add", "Add two numbers",
+//	    sdkmcp.SimpleSchema(map[string]string{"a": "number", "b": "number"}),
+//	    func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+//	        a, _ := args["a"].(float64)
+//	        b, _ := args["b"].(float64)
+//	        return sdkmcp.TextResult(fmt.Sprintf("%.2f", a+b)), nil
+//	    })
+//
+// Example with manual JSON Schema (verbose but flexible):
 //
 //	addTool := sdkmcp.Tool("add", "Add two numbers", map[string]interface{}{
 //	    "type": "object",

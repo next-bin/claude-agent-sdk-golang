@@ -4,20 +4,24 @@
 // modify permissions dynamically. This is useful for:
 // - Implementing custom security policies
 // - Auto-approving certain tools
+// - Modifying tool inputs for safety (e.g., redirecting file writes)
 // - Providing user feedback when tools are denied
 // - Updating permission rules based on context
 //
 // This example shows:
 // 1. Basic permission handling with allow/deny decisions
-// 2. PermissionResultAllow with updated permissions
-// 3. PermissionResultDeny with custom messages
-// 4. PermissionUpdate usage for dynamic rule changes
+// 2. PermissionResultAllow with updated_input (redirect file paths)
+// 3. PermissionResultAllow with updated permissions
+// 4. PermissionResultDeny with custom messages
+// 5. Dangerous command detection
+// 6. PermissionUpdate usage for dynamic rule changes
 package main
 
 import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 
 	"github.com/unitsvc/claude-agent-sdk-golang/client"
@@ -29,9 +33,11 @@ func main() {
 	fmt.Println()
 	fmt.Println("This example demonstrates tool permission handling patterns:")
 	fmt.Println("1. Basic permission allow/deny decisions")
-	fmt.Println("2. Returning PermissionResultAllow with updated permissions")
-	fmt.Println("3. Returning PermissionResultDeny with custom messages")
-	fmt.Println("4. Using PermissionUpdate to modify permission rules dynamically")
+	fmt.Println("2. PermissionResultAllow with updated_input (redirect file paths)")
+	fmt.Println("3. PermissionResultAllow with updated permissions")
+	fmt.Println("4. PermissionResultDeny with custom messages and interrupt")
+	fmt.Println("5. Dangerous command detection")
+	fmt.Println("6. Using PermissionUpdate to modify permission rules dynamically")
 	fmt.Println()
 
 	// Note: The SDK requires the Claude CLI to be installed.
@@ -47,22 +53,29 @@ func main() {
 	fmt.Println("Client created with basic permission handler (allowing Read, denying Bash)")
 	fmt.Println()
 
-	// Example 2: Permission handler with updated permissions
-	fmt.Println("--- Example 2: Permission Handler with Updated Permissions ---")
+	// Example 2: Permission handler with input modification (redirect file paths)
+	fmt.Println("--- Example 2: Permission Handler with Input Modification ---")
+	inputModClient := createClientWithInputModification()
+	defer inputModClient.Close()
+	fmt.Println("Client created with input modification (redirects writes to safe directory)")
+	fmt.Println()
+
+	// Example 3: Permission handler with updated permissions
+	fmt.Println("--- Example 3: Permission Handler with Updated Permissions ---")
 	updateClient := createClientWithPermissionUpdates()
 	defer updateClient.Close()
 	fmt.Println("Client created with permission updates (adds rules on each allowed tool)")
 	fmt.Println()
 
-	// Example 3: Permission handler with deny messages
-	fmt.Println("--- Example 3: Permission Handler with Deny Messages ---")
+	// Example 4: Permission handler with deny messages
+	fmt.Println("--- Example 4: Permission Handler with Deny Messages ---")
 	denyClient := createClientWithDenyMessages()
 	defer denyClient.Close()
 	fmt.Println("Client created with detailed deny messages")
 	fmt.Println()
 
-	// Example 4: Comprehensive permission handler
-	fmt.Println("--- Example 4: Comprehensive Permission Handler ---")
+	// Example 5: Comprehensive permission handler
+	fmt.Println("--- Example 5: Comprehensive Permission Handler ---")
 	comprehensiveClient := createClientWithComprehensiveHandler()
 	defer comprehensiveClient.Close()
 	fmt.Println("Client created with comprehensive permission logic")
@@ -118,6 +131,88 @@ func createClientWithBasicPermissionHandler() *client.Client {
 			return types.PermissionResultDeny{
 				Behavior:  "deny",
 				Message:   fmt.Sprintf("Tool %s is not recognized or permitted", toolName),
+				Interrupt: false,
+			}, nil
+		},
+	})
+}
+
+// createClientWithInputModification creates a client that demonstrates
+// PermissionResultAllow with UpdatedInput to redirect file writes to a safe directory.
+// This matches Python's "redirect writes to a safe directory" feature.
+func createClientWithInputModification() *client.Client {
+	return client.NewWithOptions(&types.ClaudeAgentOptions{
+		CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+			fmt.Printf("[Permission Request] Tool: %s\n", toolName)
+
+			// Always allow read operations
+			if toolName == "Read" || toolName == "Glob" || toolName == "Grep" {
+				fmt.Printf("[ALLOWED] Read-only tool %s is permitted\n", toolName)
+				return types.PermissionResultAllow{Behavior: "allow"}, nil
+			}
+
+			// Deny write operations to system directories
+			if toolName == "Write" || toolName == "Edit" {
+				filePath, _ := input["file_path"].(string)
+				if filePath != "" {
+					// Block writes to system directories
+					if strings.HasPrefix(filePath, "/etc/") || strings.HasPrefix(filePath, "/usr/") {
+						fmt.Printf("[DENIED] Cannot write to system directory: %s\n", filePath)
+						return types.PermissionResultDeny{
+							Behavior:  "deny",
+							Message:   fmt.Sprintf("Cannot write to system directory: %s", filePath),
+							Interrupt: false,
+						}, nil
+					}
+
+					// Redirect writes to a safe directory (matching Python example)
+					if !strings.HasPrefix(filePath, "/tmp/") && !strings.HasPrefix(filePath, "./") {
+						// Extract filename and redirect to ./safe_output/
+						safePath := "./safe_output/" + filepath.Base(filePath)
+						fmt.Printf("[REDIRECT] Redirecting write from %s to %s\n", filePath, safePath)
+
+						// Create modified input with the new path
+						modifiedInput := make(map[string]interface{})
+						for k, v := range input {
+							modifiedInput[k] = v
+						}
+						modifiedInput["file_path"] = safePath
+
+						return types.PermissionResultAllow{
+							Behavior:     "allow",
+							UpdatedInput: modifiedInput,
+						}, nil
+					}
+				}
+
+				fmt.Printf("[ALLOWED] Write tool permitted for path: %s\n", filePath)
+				return types.PermissionResultAllow{Behavior: "allow"}, nil
+			}
+
+			// Check dangerous bash commands (matching Python example)
+			if toolName == "Bash" {
+				command, _ := input["command"].(string)
+				dangerousCommands := []string{"rm -rf", "sudo", "chmod 777", "dd if=", "mkfs"}
+
+				for _, dangerous := range dangerousCommands {
+					if strings.Contains(command, dangerous) {
+						fmt.Printf("[DENIED] Dangerous command pattern detected: %s\n", dangerous)
+						return types.PermissionResultDeny{
+							Behavior:  "deny",
+							Message:   fmt.Sprintf("Dangerous command pattern detected: %s", dangerous),
+							Interrupt: false,
+						}, nil
+					}
+				}
+
+				fmt.Printf("[ALLOWED] Bash command appears safe: %s\n", command)
+				return types.PermissionResultAllow{Behavior: "allow"}, nil
+			}
+
+			// Default: deny
+			return types.PermissionResultDeny{
+				Behavior:  "deny",
+				Message:   fmt.Sprintf("Tool %s requires explicit approval", toolName),
 				Interrupt: false,
 			}, nil
 		},

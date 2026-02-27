@@ -6,6 +6,318 @@ import (
 )
 
 // ============================================================================
+// Schema Helper Tests
+// ============================================================================
+
+func TestStringProperty(t *testing.T) {
+	prop := StringProperty("A user name")
+	if prop["type"] != "string" {
+		t.Errorf("Expected type 'string', got '%v'", prop["type"])
+	}
+	if prop["description"] != "A user name" {
+		t.Errorf("Expected description 'A user name', got '%v'", prop["description"])
+	}
+}
+
+func TestNumberProperty(t *testing.T) {
+	prop := NumberProperty("A numeric value")
+	if prop["type"] != "number" {
+		t.Errorf("Expected type 'number', got '%v'", prop["type"])
+	}
+	if prop["description"] != "A numeric value" {
+		t.Errorf("Expected description 'A numeric value', got '%v'", prop["description"])
+	}
+}
+
+func TestIntegerProperty(t *testing.T) {
+	prop := IntegerProperty("An integer value")
+	if prop["type"] != "integer" {
+		t.Errorf("Expected type 'integer', got '%v'", prop["type"])
+	}
+	if prop["description"] != "An integer value" {
+		t.Errorf("Expected description 'An integer value', got '%v'", prop["description"])
+	}
+}
+
+func TestBooleanProperty(t *testing.T) {
+	prop := BooleanProperty("A flag")
+	if prop["type"] != "boolean" {
+		t.Errorf("Expected type 'boolean', got '%v'", prop["type"])
+	}
+	if prop["description"] != "A flag" {
+		t.Errorf("Expected description 'A flag', got '%v'", prop["description"])
+	}
+}
+
+func TestArrayProperty(t *testing.T) {
+	prop := ArrayProperty(StringProperty("A tag"), "List of tags")
+	if prop["type"] != "array" {
+		t.Errorf("Expected type 'array', got '%v'", prop["type"])
+	}
+	if prop["description"] != "List of tags" {
+		t.Errorf("Expected description 'List of tags', got '%v'", prop["description"])
+	}
+	items, ok := prop["items"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected items to be a map")
+	}
+	if items["type"] != "string" {
+		t.Errorf("Expected items type 'string', got '%v'", items["type"])
+	}
+}
+
+func TestObjectProperty(t *testing.T) {
+	props := map[string]interface{}{
+		"street": StringProperty("Street address"),
+		"city":   StringProperty("City name"),
+	}
+	prop := ObjectProperty(props, []string{"street", "city"}, "Address info")
+
+	if prop["type"] != "object" {
+		t.Errorf("Expected type 'object', got '%v'", prop["type"])
+	}
+	if prop["description"] != "Address info" {
+		t.Errorf("Expected description 'Address info', got '%v'", prop["description"])
+	}
+	properties, ok := prop["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected properties to be a map")
+	}
+	if len(properties) != 2 {
+		t.Errorf("Expected 2 properties, got %d", len(properties))
+	}
+	required, ok := prop["required"].([]string)
+	if !ok {
+		t.Fatal("Expected required to be a string slice")
+	}
+	if len(required) != 2 {
+		t.Errorf("Expected 2 required fields, got %d", len(required))
+	}
+}
+
+func TestObjectPropertyWithEmptyRequired(t *testing.T) {
+	props := map[string]interface{}{
+		"optional": StringProperty("Optional field"),
+	}
+	prop := ObjectProperty(props, []string{}, "Optional object")
+
+	// Should not have required field when empty
+	if _, exists := prop["required"]; exists {
+		t.Error("Expected no 'required' field when required slice is empty")
+	}
+}
+
+func TestSchema(t *testing.T) {
+	schema := Schema(map[string]interface{}{
+		"a": NumberProperty("First number"),
+		"b": NumberProperty("Second number"),
+	}, []string{"a", "b"})
+
+	if schema["type"] != "object" {
+		t.Errorf("Expected type 'object', got '%v'", schema["type"])
+	}
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected properties to be a map")
+	}
+	if len(properties) != 2 {
+		t.Errorf("Expected 2 properties, got %d", len(properties))
+	}
+	required, ok := schema["required"].([]string)
+	if !ok {
+		t.Fatal("Expected required to be a string slice")
+	}
+	if len(required) != 2 {
+		t.Errorf("Expected 2 required fields, got %d", len(required))
+	}
+}
+
+func TestSchemaWithEmptyRequired(t *testing.T) {
+	schema := Schema(map[string]interface{}{
+		"optional": StringProperty("Optional field"),
+	}, []string{})
+
+	// Should not have required field when empty
+	if _, exists := schema["required"]; exists {
+		t.Error("Expected no 'required' field when required slice is empty")
+	}
+}
+
+func TestSimpleSchema(t *testing.T) {
+	schema := SimpleSchema(map[string]string{
+		"name":   "string",
+		"age":    "integer",
+		"active": "boolean",
+		"score":  "number",
+	})
+
+	if schema["type"] != "object" {
+		t.Errorf("Expected type 'object', got '%v'", schema["type"])
+	}
+
+	properties := schema["properties"].(map[string]interface{})
+	if len(properties) != 4 {
+		t.Errorf("Expected 4 properties, got %d", len(properties))
+	}
+
+	// Check each property type
+	nameProp := properties["name"].(map[string]interface{})
+	if nameProp["type"] != "string" {
+		t.Errorf("Expected name type 'string', got '%v'", nameProp["type"])
+	}
+
+	ageProp := properties["age"].(map[string]interface{})
+	if ageProp["type"] != "integer" {
+		t.Errorf("Expected age type 'integer', got '%v'", ageProp["type"])
+	}
+
+	activeProp := properties["active"].(map[string]interface{})
+	if activeProp["type"] != "boolean" {
+		t.Errorf("Expected active type 'boolean', got '%v'", activeProp["type"])
+	}
+
+	scoreProp := properties["score"].(map[string]interface{})
+	if scoreProp["type"] != "number" {
+		t.Errorf("Expected score type 'number', got '%v'", scoreProp["type"])
+	}
+
+	// All fields should be required
+	required := schema["required"].([]string)
+	if len(required) != 4 {
+		t.Errorf("Expected 4 required fields, got %d", len(required))
+	}
+}
+
+func TestSimpleSchemaWithArrays(t *testing.T) {
+	schema := SimpleSchema(map[string]string{
+		"tags":   "string[]",
+		"scores": "number[]",
+		"ids":    "integer[]",
+		"flags":  "boolean[]",
+	})
+
+	properties := schema["properties"].(map[string]interface{})
+
+	// Check string array
+	tagsProp := properties["tags"].(map[string]interface{})
+	if tagsProp["type"] != "array" {
+		t.Errorf("Expected tags type 'array', got '%v'", tagsProp["type"])
+	}
+	tagsItems := tagsProp["items"].(map[string]interface{})
+	if tagsItems["type"] != "string" {
+		t.Errorf("Expected tags items type 'string', got '%v'", tagsItems["type"])
+	}
+
+	// Check number array
+	scoresProp := properties["scores"].(map[string]interface{})
+	if scoresProp["type"] != "array" {
+		t.Errorf("Expected scores type 'array', got '%v'", scoresProp["type"])
+	}
+	scoresItems := scoresProp["items"].(map[string]interface{})
+	if scoresItems["type"] != "number" {
+		t.Errorf("Expected scores items type 'number', got '%v'", scoresItems["type"])
+	}
+
+	// Check integer array
+	idsProp := properties["ids"].(map[string]interface{})
+	idsItems := idsProp["items"].(map[string]interface{})
+	if idsItems["type"] != "integer" {
+		t.Errorf("Expected ids items type 'integer', got '%v'", idsItems["type"])
+	}
+
+	// Check boolean array
+	flagsProp := properties["flags"].(map[string]interface{})
+	flagsItems := flagsProp["items"].(map[string]interface{})
+	if flagsItems["type"] != "boolean" {
+		t.Errorf("Expected flags items type 'boolean', got '%v'", flagsItems["type"])
+	}
+}
+
+func TestSimpleSchemaWithUnknownType(t *testing.T) {
+	schema := SimpleSchema(map[string]string{
+		"unknown": "unknowntype",
+	})
+
+	properties := schema["properties"].(map[string]interface{})
+	unknownProp := properties["unknown"].(map[string]interface{})
+	// Unknown types should default to string
+	if unknownProp["type"] != "string" {
+		t.Errorf("Expected unknown type to default to 'string', got '%v'", unknownProp["type"])
+	}
+}
+
+func TestSimpleSchemaWithUnknownArrayType(t *testing.T) {
+	schema := SimpleSchema(map[string]string{
+		"items": "unknown[]",
+	})
+
+	properties := schema["properties"].(map[string]interface{})
+	itemsProp := properties["items"].(map[string]interface{})
+	if itemsProp["type"] != "array" {
+		t.Errorf("Expected type 'array', got '%v'", itemsProp["type"])
+	}
+	// Unknown array types should default to string items
+	arrayItems := itemsProp["items"].(map[string]interface{})
+	if arrayItems["type"] != "string" {
+		t.Errorf("Expected items type to default to 'string', got '%v'", arrayItems["type"])
+	}
+}
+
+func TestToolWithSchemaHelpers(t *testing.T) {
+	// Test creating a tool using the new schema helpers
+	tool := Tool("add", "Add two numbers",
+		Schema(map[string]interface{}{
+			"a": NumberProperty("First number"),
+			"b": NumberProperty("Second number"),
+		}, []string{"a", "b"}),
+		func(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+			return TextResult("result"), nil
+		})
+
+	if tool.Name != "add" {
+		t.Errorf("Expected name 'add', got '%s'", tool.Name)
+	}
+
+	schema := tool.InputSchema
+	if schema["type"] != "object" {
+		t.Errorf("Expected schema type 'object', got '%v'", schema["type"])
+	}
+
+	properties := schema["properties"].(map[string]interface{})
+	if len(properties) != 2 {
+		t.Errorf("Expected 2 properties, got %d", len(properties))
+	}
+}
+
+func TestToolWithSimpleSchema(t *testing.T) {
+	// Test creating a tool using SimpleSchema
+	tool := Tool("multiply", "Multiply two numbers",
+		SimpleSchema(map[string]string{"a": "number", "b": "number"}),
+		func(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+			return TextResult("result"), nil
+		})
+
+	if tool.Name != "multiply" {
+		t.Errorf("Expected name 'multiply', got '%s'", tool.Name)
+	}
+
+	schema := tool.InputSchema
+	if schema["type"] != "object" {
+		t.Errorf("Expected schema type 'object', got '%v'", schema["type"])
+	}
+
+	properties := schema["properties"].(map[string]interface{})
+	if len(properties) != 2 {
+		t.Errorf("Expected 2 properties, got %d", len(properties))
+	}
+
+	required := schema["required"].([]string)
+	if len(required) != 2 {
+		t.Errorf("Expected 2 required fields, got %d", len(required))
+	}
+}
+
+// ============================================================================
 // Content Block Tests
 // ============================================================================
 

@@ -1,33 +1,195 @@
-// Example mcp_calculator demonstrates how to configure and use MCP (Model Context Protocol) servers
-// with the Claude Agent SDK for Go.
+// Example mcp_calculator demonstrates how to create an in-process MCP server with
+// calculator tools using the Claude Agent SDK for Go.
+//
+// Unlike external MCP servers that require separate processes, this server
+// runs directly within your Go application, providing better performance
+// and simpler deployment.
 //
 // This example shows:
-// 1. Configuring an MCP server using McpStdioServerConfig
-// 2. Using MCPServers option in ClaudeAgentOptions
-// 3. How the agent can use MCP tools provided by the server
+// 1. Creating tools using the sdkmcp convenience package
+// 2. Creating an SDK MCP server with multiple tools
+// 3. Handling errors (divide by zero, negative sqrt)
+// 4. Running example calculations with the tools
 //
 // Prerequisites:
 // - Claude CLI installed: npm install -g @anthropic-ai/claude-code
 // - Authenticated: claude login
-// - MCP calculator server available (e.g., mcp-server-calculator or similar)
-//
-// The MCP server must be installed and available on your system. For this example,
-// you can use any MCP server that provides calculator-like tools. Common options include:
-// - mcp-server-calculator (npm install -g @modelcontextprotocol/server-calculator)
-// - Any custom MCP server that implements the MCP protocol
 package main
 
 import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
+	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
+
+// ============================================================================
+// Calculator Tool Definitions
+// ============================================================================
+
+// createAddTool creates the add tool.
+func createAddTool() *sdkmcp.SdkMcpTool {
+	return sdkmcp.Tool("add", "Add two numbers together", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"a": map[string]interface{}{"type": "number"},
+			"b": map[string]interface{}{"type": "number"},
+		},
+		"required": []string{"a", "b"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		a, _ := args["a"].(float64)
+		b, _ := args["b"].(float64)
+		result := a + b
+		return sdkmcp.TextResult(fmt.Sprintf("%.0f + %.0f = %.0f", a, b, result)), nil
+	})
+}
+
+// createSubtractTool creates the subtract tool.
+func createSubtractTool() *sdkmcp.SdkMcpTool {
+	return sdkmcp.Tool("subtract", "Subtract one number from another", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"a": map[string]interface{}{"type": "number"},
+			"b": map[string]interface{}{"type": "number"},
+		},
+		"required": []string{"a", "b"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		a, _ := args["a"].(float64)
+		b, _ := args["b"].(float64)
+		result := a - b
+		return sdkmcp.TextResult(fmt.Sprintf("%.0f - %.0f = %.0f", a, b, result)), nil
+	})
+}
+
+// createMultiplyTool creates the multiply tool.
+func createMultiplyTool() *sdkmcp.SdkMcpTool {
+	return sdkmcp.Tool("multiply", "Multiply two numbers", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"a": map[string]interface{}{"type": "number"},
+			"b": map[string]interface{}{"type": "number"},
+		},
+		"required": []string{"a", "b"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		a, _ := args["a"].(float64)
+		b, _ := args["b"].(float64)
+		result := a * b
+		return sdkmcp.TextResult(fmt.Sprintf("%.0f × %.0f = %.0f", a, b, result)), nil
+	})
+}
+
+// createDivideTool creates the divide tool with error handling for division by zero.
+func createDivideTool() *sdkmcp.SdkMcpTool {
+	return sdkmcp.Tool("divide", "Divide one number by another", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"a": map[string]interface{}{"type": "number"},
+			"b": map[string]interface{}{"type": "number"},
+		},
+		"required": []string{"a", "b"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		a, _ := args["a"].(float64)
+		b, _ := args["b"].(float64)
+		if b == 0 {
+			return sdkmcp.TextResultWithError("Error: Division by zero is not allowed"), nil
+		}
+		result := a / b
+		return sdkmcp.TextResult(fmt.Sprintf("%.0f ÷ %.0f = %g", a, b, result)), nil
+	})
+}
+
+// createSqrtTool creates the square root tool with error handling for negative numbers.
+func createSqrtTool() *sdkmcp.SdkMcpTool {
+	return sdkmcp.Tool("sqrt", "Calculate square root", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"n": map[string]interface{}{"type": "number"},
+		},
+		"required": []string{"n"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		n, _ := args["n"].(float64)
+		if n < 0 {
+			return sdkmcp.TextResultWithError(fmt.Sprintf("Error: Cannot calculate square root of negative number %.0f", n)), nil
+		}
+		result := math.Sqrt(n)
+		return sdkmcp.TextResult(fmt.Sprintf("√%.0f = %g", n, result)), nil
+	})
+}
+
+// createPowerTool creates the power tool.
+func createPowerTool() *sdkmcp.SdkMcpTool {
+	return sdkmcp.Tool("power", "Raise a number to a power", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"base":     map[string]interface{}{"type": "number"},
+			"exponent": map[string]interface{}{"type": "number"},
+		},
+		"required": []string{"base", "exponent"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		base, _ := args["base"].(float64)
+		exponent, _ := args["exponent"].(float64)
+		result := math.Pow(base, exponent)
+		return sdkmcp.TextResult(fmt.Sprintf("%.0f^%.0f = %g", base, exponent, result)), nil
+	})
+}
+
+// ============================================================================
+// Message Display Helper
+// ============================================================================
+
+// displayMessage prints message content in a clean format.
+func displayMessage(msg types.Message) {
+	switch m := msg.(type) {
+	case *types.UserMessage:
+		switch content := m.Content.(type) {
+		case string:
+			fmt.Printf("User: %s\n", content)
+		case []types.ContentBlock:
+			for _, block := range content {
+				switch b := block.(type) {
+				case types.TextBlock:
+					fmt.Printf("User: %s\n", b.Text)
+				case types.ToolResultBlock:
+					resultContent := fmt.Sprintf("%v", b.Content)
+					if len(resultContent) > 100 {
+						resultContent = resultContent[:100] + "..."
+					}
+					fmt.Printf("Tool Result: %s\n", resultContent)
+				}
+			}
+		}
+	case *types.AssistantMessage:
+		for _, block := range m.Content {
+			switch b := block.(type) {
+			case types.TextBlock:
+				fmt.Printf("Claude: %s\n", b.Text)
+			case types.ToolUseBlock:
+				fmt.Printf("Using tool: %s\n", b.Name)
+				if b.Input != nil {
+					fmt.Printf("  Input: %v\n", b.Input)
+				}
+			}
+		}
+	case *types.SystemMessage:
+		// Ignore system messages
+	case *types.ResultMessage:
+		fmt.Println("Result ended")
+		if m.TotalCostUSD != nil {
+			fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
+		}
+	}
+}
+
+// ============================================================================
+// Main
+// ============================================================================
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,189 +204,81 @@ func main() {
 		cancel()
 	}()
 
-	// Example 1: Configure MCP server using McpStdioServerConfig
-	// This is the most common way to configure an MCP server that communicates via stdio.
-	//
-	// McpStdioServerConfig has the following fields:
-	// - Type: Optional, defaults to "stdio" if not specified
-	// - Command: The command to run the MCP server (required)
-	// - Args: Optional command-line arguments to pass to the server
-	// - Env: Optional environment variables to set for the server process
-	calculatorServer := types.McpStdioServerConfig{
-		Command: "npx",
-		Args:    []string{"-y", "@anthropic-ai/mcp-server-calculator"},
-		Env: map[string]string{
-			"NODE_OPTIONS": "--max-old-space-size=512",
-		},
-	}
+	// Create the calculator server with all tools
+	calculator := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{
+		createAddTool(),
+		createSubtractTool(),
+		createMultiplyTool(),
+		createDivideTool(),
+		createSqrtTool(),
+		createPowerTool(),
+	}, sdkmcp.WithServerVersion("2.0.0"))
 
-	// Example 2: Create a map of MCP servers
-	// Multiple MCP servers can be configured, each with a unique name
-	mcpServers := map[string]types.McpServerConfig{
-		"calculator": calculatorServer,
-	}
+	fmt.Println("=== Claude Agent SDK Go - Calculator MCP Server Example ===")
+	fmt.Println()
+	fmt.Println("Created calculator MCP server with 6 tools:")
+	fmt.Println("  - add: Add two numbers together")
+	fmt.Println("  - subtract: Subtract one number from another")
+	fmt.Println("  - multiply: Multiply two numbers")
+	fmt.Println("  - divide: Divide one number by another")
+	fmt.Println("  - sqrt: Calculate square root")
+	fmt.Println("  - power: Raise a number to a power")
+	fmt.Println()
 
-	// Example 3: Configure ClaudeAgentOptions with MCP servers
-	// The MCPServers field accepts the map we created above
+	// Configure Claude to use the calculator server with allowed tools
+	// Pre-approve all calculator MCP tools so they can be used without permission prompts
+	mode := types.PermissionModeBypassPermissions
 	options := &types.ClaudeAgentOptions{
 		Model: types.String("claude-sonnet-4-20250514"),
-
-		// MCPServers configures one or more MCP servers that Claude can use
-		// The agent will automatically discover and use tools provided by these servers
-		MCPServers: mcpServers,
-
-		// Optional: Configure permission mode
-		// "bypassPermissions" is useful for automation but use with caution
-		// PermissionMode: (*types.PermissionMode)(types.String("bypassPermissions")),
+		MCPServers: map[string]types.McpServerConfig{
+			"calc": types.McpSdkServerConfig{
+				Type:     "sdk",
+				Instance: calculator,
+			},
+		},
+		AllowedTools: []string{
+			"mcp__calc__add",
+			"mcp__calc__subtract",
+			"mcp__calc__multiply",
+			"mcp__calc__divide",
+			"mcp__calc__sqrt",
+			"mcp__calc__power",
+		},
+		PermissionMode: &mode,
 	}
 
-	// Create a client with the configured options
-	client := claude.NewClientWithOptions(options)
-	defer client.Close()
-
-	// Connect to Claude with the MCP servers configured
-	fmt.Println("Connecting to Claude with MCP calculator server...")
-	if err := client.Connect(ctx); err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-	}
-	fmt.Println("Connected successfully!")
-
-	// Get MCP server status to verify the server is connected
-	fmt.Println("\nChecking MCP server status...")
-	status, err := client.GetMCPStatus(ctx)
-	if err != nil {
-		log.Printf("Warning: Could not get MCP status: %v", err)
-	} else {
-		fmt.Printf("MCP Status: %+v\n", status)
+	// Example prompts to demonstrate calculator usage
+	prompts := []string{
+		"List your tools",
+		"Calculate 15 + 27",
+		"What is 100 divided by 7?",
+		"Calculate the square root of 144",
+		"What is 2 raised to the power of 8?",
+		"Calculate (12 + 8) * 3 - 10", // Complex calculation
 	}
 
-	// Example 4: Send a query that uses the MCP calculator tools
-	// The agent will automatically discover and use the calculator tools
-	// from the MCP server when appropriate
-	fmt.Println("\nSending query to Claude...")
-	fmt.Println("Query: 'Calculate 123 * 456 using the calculator tool'")
+	for _, prompt := range prompts {
+		fmt.Printf("\n%s\n", "==================================================")
+		fmt.Printf("Prompt: %s\n", prompt)
+		fmt.Printf("%s\n", "==================================================")
 
-	msgChan, err := client.Query(ctx, "Calculate 123 * 456 using the calculator tool. Show me the result.")
-	if err != nil {
-		log.Fatalf("Query failed: %v", err)
-	}
+		// Create a new client for each prompt (matching Python's async with pattern)
+		client := claude.NewClientWithOptions(options)
+		defer client.Close()
 
-	// Process messages from Claude
-	fmt.Println("\n--- Response from Claude ---")
-	for msg := range msgChan {
-		switch m := msg.(type) {
-		case *types.AssistantMessage:
-			// Handle assistant messages
-			fmt.Println("\n[Assistant Message]")
-			for _, block := range m.Content {
-				switch b := block.(type) {
-				case types.TextBlock:
-					fmt.Printf("Text: %s\n", b.Text)
-				case types.ToolUseBlock:
-					fmt.Printf("Tool Use: %s (ID: %s)\n", b.Name, b.ID)
-					fmt.Printf("  Input: %+v\n", b.Input)
-				case types.ToolResultBlock:
-					fmt.Printf("Tool Result (ToolUseID: %s): %v\n", b.ToolUseID, b.Content)
-				case types.ThinkingBlock:
-					fmt.Printf("Thinking: %s...\n", truncate(b.Thinking, 100))
-				default:
-					fmt.Printf("Block type: %T\n", block)
-				}
-			}
-		case *types.ResultMessage:
-			// Final result message
-			fmt.Println("\n[Result Message]")
-			if m.Result != nil {
-				fmt.Printf("Result: %s\n", *m.Result)
-			}
-			fmt.Printf("Duration: %dms (API: %dms)\n", m.DurationMs, m.DurationAPIMs)
-			fmt.Printf("Turns: %d, Session: %s\n", m.NumTurns, m.SessionID)
-			if m.TotalCostUSD != nil {
-				fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
-			}
-			if m.IsError {
-				fmt.Println("Error: true")
-			}
-		case *types.SystemMessage:
-			// System message (e.g., MCP server status)
-			fmt.Printf("\n[System Message] Subtype: %s\n", m.Subtype)
-			for k, v := range m.Data {
-				if k != "type" && k != "subtype" {
-					fmt.Printf("  %s: %v\n", k, v)
-				}
-			}
-		case *types.UserMessage:
-			// User message echoed back
-			fmt.Printf("\n[User Message] Content: %v\n", m.Content)
-		case *types.StreamEvent:
-			// Stream event for partial messages
-			fmt.Printf("\n[Stream Event] UUID: %s\n", m.UUID)
-		default:
-			fmt.Printf("\n[Unknown Message Type] %T\n", msg)
+		if err := client.Connect(ctx); err != nil {
+			log.Printf("Failed to connect: %v", err)
+			continue
+		}
+
+		msgChan, err := client.Query(ctx, prompt)
+		if err != nil {
+			log.Printf("Query failed: %v", err)
+			continue
+		}
+
+		for msg := range msgChan {
+			displayMessage(msg)
 		}
 	}
-
-	fmt.Println("\n--- Example Complete ---")
-
-	// Example 5: Alternative configuration with multiple MCP servers
-	fmt.Println("\n--- Alternative Configuration Example ---")
-	exampleMultipleServers()
 }
-
-// truncate truncates a string to maxLen characters
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
-
-// exampleMultipleServers demonstrates how to configure multiple MCP servers
-func exampleMultipleServers() {
-	// You can configure multiple MCP servers in a single client
-	multipleServers := map[string]types.McpServerConfig{
-		"calculator": types.McpStdioServerConfig{
-			Command: "npx",
-			Args:    []string{"-y", "@anthropic-ai/mcp-server-calculator"},
-		},
-		"filesystem": types.McpStdioServerConfig{
-			Command: "npx",
-			Args:    []string{"-y", "@anthropic-ai/mcp-server-filesystem", "/tmp"},
-		},
-	}
-
-	options := &types.ClaudeAgentOptions{
-		Model:      types.String("claude-sonnet-4-20250514"),
-		MCPServers: multipleServers,
-	}
-
-	fmt.Printf("Options with multiple MCP servers: %+v\n", options.MCPServers)
-
-	// Note: When using multiple MCP servers, Claude can use tools from any
-	// of the configured servers. Tool names are typically prefixed with the
-	// server name (e.g., "calculator_add", "filesystem_read_file")
-}
-
-// Example of using McpSSEServerConfig for SSE-based MCP servers (HTTP-based)
-// Uncomment and modify as needed:
-//
-// func exampleSSEServer() {
-// 	// For MCP servers that communicate via Server-Sent Events (SSE)
-// 	sseServer := types.McpSSEServerConfig{
-// 		Type: "sse",
-// 		URL:  "http://localhost:8080/mcp",
-// 	}
-//
-// 	mcpServers := map[string]types.McpServerConfig{
-// 		"remote-calculator": sseServer,
-// 	}
-//
-// 	options := &types.ClaudeAgentOptions{
-// 		Model:      types.String("claude-sonnet-4-20250514"),
-// 		MCPServers: mcpServers,
-// 	}
-//
-// 	client := claude.NewClientWithOptions(options)
-// 	defer client.Close()
-// 	// ... rest of client usage
-// }

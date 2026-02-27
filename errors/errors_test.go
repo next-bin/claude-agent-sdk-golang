@@ -2,6 +2,7 @@ package errors
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -359,4 +360,213 @@ func TestSDKErrorAlias(t *testing.T) {
 	if err.Type != "test" {
 		t.Errorf("Expected type 'test', got %q", err.Type)
 	}
+}
+
+// ============================================================================
+// Error Type Hierarchy Tests
+// ============================================================================
+
+func TestErrorTypeHierarchy(t *testing.T) {
+	// Test that specific error types can be checked
+	tests := []struct {
+		name     string
+		err      error
+		isTimeout bool
+		isInterrupted bool
+	}{
+		{"ErrTimeout", ErrTimeout, true, false},
+		{"ErrInterrupted", ErrInterrupted, false, true},
+		{"ErrNoAPIKey", ErrNoAPIKey, false, false},
+		{"ErrNotInstalled", ErrNotInstalled, false, false},
+		{"ErrConnectionFailed", ErrConnectionFailed, false, false},
+		{"ClaudeSDKError", NewClaudeSDKError("test", "msg", nil), false, false},
+		{"CLIConnectionError", NewCLIConnectionError("conn", nil), false, false},
+		{"CLINotFoundError", NewCLINotFoundError("not found", ""), false, false},
+		{"ProcessError", NewProcessError("proc", nil, ""), false, false},
+		{"CLIJSONDecodeError", NewCLIJSONDecodeError("line", nil), false, false},
+		{"MessageParseError", NewMessageParseError("parse", nil), false, false},
+		{"CLIError", NewCLIError(1, "cli", ""), false, false},
+		{"ToolExecutionError", NewToolExecutionError("tool", "exec", nil), false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsTimeout(tt.err); got != tt.isTimeout {
+				t.Errorf("IsTimeout(%s) = %v, want %v", tt.name, got, tt.isTimeout)
+			}
+			if got := IsInterrupted(tt.err); got != tt.isInterrupted {
+				t.Errorf("IsInterrupted(%s) = %v, want %v", tt.name, got, tt.isInterrupted)
+			}
+		})
+	}
+}
+
+// ============================================================================
+// Error Message Formatting Tests
+// ============================================================================
+
+func TestErrorMessagesContainRelevantInfo(t *testing.T) {
+	t.Run("ProcessError contains exit code and stderr", func(t *testing.T) {
+		exitCode := 127
+		err := NewProcessError("process failed", &exitCode, "command not found")
+		errStr := err.Error()
+
+		if !containsString(errStr, "process failed") {
+			t.Errorf("Expected error to contain 'process failed', got %q", errStr)
+		}
+		if !containsString(errStr, "exit code: 127") {
+			t.Errorf("Expected error to contain 'exit code: 127', got %q", errStr)
+		}
+		if !containsString(errStr, "command not found") {
+			t.Errorf("Expected error to contain 'command not found', got %q", errStr)
+		}
+	})
+
+	t.Run("CLIJSONDecodeError truncates long lines", func(t *testing.T) {
+		longLine := strings.Repeat("x", 200)
+		err := NewCLIJSONDecodeError(longLine, nil)
+		errStr := err.Error()
+
+		// Should truncate and add "..."
+		if len(errStr) > 150 {
+			t.Errorf("Expected truncated error message, got length %d: %q", len(errStr), errStr)
+		}
+		if !containsString(errStr, "...") {
+			t.Errorf("Expected error to contain '...' for truncation, got %q", errStr)
+		}
+	})
+
+	t.Run("CLIError includes stderr when present", func(t *testing.T) {
+		err := NewCLIError(1, "error occurred", "stderr output")
+		errStr := err.Error()
+
+		if !containsString(errStr, "exit code 1") {
+			t.Errorf("Expected error to contain 'exit code 1', got %q", errStr)
+		}
+		if !containsString(errStr, "error occurred") {
+			t.Errorf("Expected error to contain 'error occurred', got %q", errStr)
+		}
+		if !containsString(errStr, "stderr output") {
+			t.Errorf("Expected error to contain 'stderr output', got %q", errStr)
+		}
+	})
+}
+
+// ============================================================================
+// Error Chaining Tests
+// ============================================================================
+
+func TestErrorChaining(t *testing.T) {
+	t.Run("ClaudeSDKError chains cause correctly", func(t *testing.T) {
+		cause := errors.New("root cause")
+		err := NewClaudeSDKError("type", "message", cause)
+
+		unwrapped := err.Unwrap()
+		if unwrapped == nil {
+			t.Fatal("Expected non-nil unwrapped error")
+		}
+		if unwrapped.Error() != "root cause" {
+			t.Errorf("Expected unwrapped error 'root cause', got %q", unwrapped.Error())
+		}
+
+		// Test errors.Is works through the chain
+		if !errors.Is(err, cause) {
+			t.Error("Expected errors.Is to find the cause")
+		}
+	})
+
+	t.Run("CLIConnectionError chains cause correctly", func(t *testing.T) {
+		cause := errors.New("network error")
+		err := NewCLIConnectionError("connection failed", cause)
+
+		unwrapped := err.Unwrap()
+		if unwrapped == nil {
+			t.Fatal("Expected non-nil unwrapped error")
+		}
+		if unwrapped.Error() != "network error" {
+			t.Errorf("Expected unwrapped error 'network error', got %q", unwrapped.Error())
+		}
+	})
+
+	t.Run("ToolExecutionError chains cause correctly", func(t *testing.T) {
+		cause := errors.New("execution failed")
+		err := NewToolExecutionError("my_tool", "tool error", cause)
+
+		unwrapped := err.Unwrap()
+		if unwrapped == nil {
+			t.Fatal("Expected non-nil unwrapped error")
+		}
+		if unwrapped.Error() != "execution failed" {
+			t.Errorf("Expected unwrapped error 'execution failed', got %q", unwrapped.Error())
+		}
+	})
+
+	t.Run("CLIJSONDecodeError chains cause correctly", func(t *testing.T) {
+		cause := errors.New("json parse error")
+		err := NewCLIJSONDecodeError(`{"invalid":}`, cause)
+
+		unwrapped := err.Unwrap()
+		if unwrapped == nil {
+			t.Fatal("Expected non-nil unwrapped error")
+		}
+		if unwrapped.Error() != "json parse error" {
+			t.Errorf("Expected unwrapped error 'json parse error', got %q", unwrapped.Error())
+		}
+	})
+}
+
+// ============================================================================
+// Error Interface Compliance Tests
+// ============================================================================
+
+func TestErrorInterfaceCompliance(t *testing.T) {
+	// Ensure all error types implement the error interface
+	var _ error = (*ClaudeSDKError)(nil)
+	var _ error = (*CLIConnectionError)(nil)
+	var _ error = (*CLINotFoundError)(nil)
+	var _ error = (*ProcessError)(nil)
+	var _ error = (*CLIJSONDecodeError)(nil)
+	var _ error = (*MessageParseError)(nil)
+	var _ error = (*CLIError)(nil)
+	var _ error = (*ToolExecutionError)(nil)
+	var _ error = (*SDKError)(nil) // Alias
+}
+
+// ============================================================================
+// Nil and Edge Case Tests
+// ============================================================================
+
+func TestErrorNilHandling(t *testing.T) {
+	t.Run("ClaudeSDKError with nil cause", func(t *testing.T) {
+		err := NewClaudeSDKError("type", "message", nil)
+		if err.Unwrap() != nil {
+			t.Error("Expected nil unwrap for nil cause")
+		}
+	})
+
+	t.Run("CLIConnectionError with nil cause", func(t *testing.T) {
+		err := NewCLIConnectionError("message", nil)
+		if err.Unwrap() != nil {
+			t.Error("Expected nil unwrap for nil cause")
+		}
+	})
+
+	t.Run("ProcessError with nil exit code", func(t *testing.T) {
+		err := NewProcessError("message", nil, "stderr")
+		if err.ExitCode != nil {
+			t.Error("Expected nil exit code")
+		}
+	})
+
+	t.Run("MessageParseError with nil data", func(t *testing.T) {
+		err := NewMessageParseError("message", nil)
+		if err.Data != nil {
+			t.Error("Expected nil data")
+		}
+	})
+}
+
+// Helper function to check if a string contains a substring
+func containsString(s, substr string) bool {
+	return strings.Contains(s, substr)
 }

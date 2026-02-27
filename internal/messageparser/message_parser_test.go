@@ -710,3 +710,508 @@ func TestParseContentBlocksInvalidBlock(t *testing.T) {
 		t.Errorf("Expected 1 content block (invalid skipped), got %d", len(result))
 	}
 }
+
+// ============================================================================
+// User Message with Mixed Content Tests
+// ============================================================================
+
+func TestParseUserMessageWithMixedContent(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "user",
+		"message": map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "Here's what I found:",
+				},
+				map[string]interface{}{
+					"type":  "tool_use",
+					"id":    "use_1",
+					"name":  "Search",
+					"input": map[string]interface{}{"query": "test"},
+				},
+				map[string]interface{}{
+					"type":        "tool_result",
+					"tool_use_id": "use_1",
+					"content":     "Search results",
+				},
+				map[string]interface{}{
+					"type": "text",
+					"text": "What do you think?",
+				},
+			},
+		},
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	userMsg, ok := msg.(*types.UserMessage)
+	if !ok {
+		t.Fatal("Expected UserMessage")
+	}
+
+	blocks, ok := userMsg.Content.([]types.ContentBlock)
+	if !ok {
+		t.Fatal("Expected content blocks")
+	}
+
+	if len(blocks) != 4 {
+		t.Errorf("Expected 4 content blocks, got %d", len(blocks))
+		return
+	}
+
+	// Verify block types
+	if _, ok := blocks[0].(types.TextBlock); !ok {
+		t.Error("Expected first block to be TextBlock")
+	}
+	if _, ok := blocks[1].(types.ToolUseBlock); !ok {
+		t.Error("Expected second block to be ToolUseBlock")
+	}
+	if _, ok := blocks[2].(types.ToolResultBlock); !ok {
+		t.Error("Expected third block to be ToolResultBlock")
+	}
+	if _, ok := blocks[3].(types.TextBlock); !ok {
+		t.Error("Expected fourth block to be TextBlock")
+	}
+}
+
+func TestParseUserMessageWithToolUseResultAndStructuredPatch(t *testing.T) {
+	toolResultData := map[string]interface{}{
+		"filePath": "/path/to/file.py",
+		"oldString": "old code",
+		"newString": "new code",
+		"originalFile": "full file contents",
+		"structuredPatch": []interface{}{
+			map[string]interface{}{
+				"oldStart":  float64(33),
+				"oldLines":  float64(7),
+				"newStart":  float64(33),
+				"newLines":  float64(7),
+				"lines":     []interface{}{"   # comment", "-      old line", "+      new line"},
+			},
+		},
+		"userModified": false,
+		"replaceAll":   false,
+	}
+
+	data := map[string]interface{}{
+		"type": "user",
+		"message": map[string]interface{}{
+			"role": "user",
+			"content": []interface{}{
+				map[string]interface{}{
+					"tool_use_id": "toolu_vrtx_01KXWexk3NJdwkjWzPMGQ2F1",
+					"type":        "tool_result",
+					"content":     "The file has been updated.",
+				},
+			},
+		},
+		"parent_tool_use_id": nil,
+		"session_id":         "84afb479-17ae-49af-8f2b-666ac2530c3a",
+		"uuid":               "2ace3375-1879-48a0-a421-6bce25a9295a",
+		"tool_use_result":    toolResultData,
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	userMsg, ok := msg.(*types.UserMessage)
+	if !ok {
+		t.Fatal("Expected UserMessage")
+	}
+
+	if userMsg.ToolUseResult == nil {
+		t.Fatal("Expected tool_use_result to be set")
+	}
+
+	if userMsg.ToolUseResult["filePath"] != "/path/to/file.py" {
+		t.Errorf("Expected filePath '/path/to/file.py', got %v", userMsg.ToolUseResult["filePath"])
+	}
+
+	if userMsg.UUID == nil || *userMsg.UUID != "2ace3375-1879-48a0-a421-6bce25a9295a" {
+		t.Errorf("Expected UUID to be set correctly, got %v", userMsg.UUID)
+	}
+}
+
+func TestParseUserMessageWithStringContentAndToolUseResult(t *testing.T) {
+	toolResultData := map[string]interface{}{
+		"filePath":     "/path/to/file.py",
+		"userModified": true,
+	}
+
+	data := map[string]interface{}{
+		"type": "user",
+		"message": map[string]interface{}{
+			"content": "Simple string content",
+		},
+		"tool_use_result": toolResultData,
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	userMsg, ok := msg.(*types.UserMessage)
+	if !ok {
+		t.Fatal("Expected UserMessage")
+	}
+
+	content, ok := userMsg.Content.(string)
+	if !ok {
+		t.Fatal("Expected string content")
+	}
+	if content != "Simple string content" {
+		t.Errorf("Expected 'Simple string content', got %q", content)
+	}
+
+	if userMsg.ToolUseResult == nil {
+		t.Error("Expected tool_use_result to be set")
+	}
+}
+
+// ============================================================================
+// Assistant Message Error Tests
+// ============================================================================
+
+func TestParseAssistantMessageWithAuthenticationError(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "assistant",
+		"message": map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "Invalid API key · Fix external API key",
+				},
+			},
+			"model": "<synthetic>",
+		},
+		"session_id": "test-session",
+		"error":      "authentication_failed",
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	assistantMsg, ok := msg.(*types.AssistantMessage)
+	if !ok {
+		t.Fatal("Expected AssistantMessage")
+	}
+
+	if assistantMsg.Error == nil || *assistantMsg.Error != "authentication_failed" {
+		t.Errorf("Expected error 'authentication_failed', got %v", assistantMsg.Error)
+	}
+}
+
+func TestParseAssistantMessageWithUnknownError(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "assistant",
+		"message": map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": `API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"}}`,
+				},
+			},
+			"model": "<synthetic>",
+		},
+		"session_id": "test-session",
+		"error":      "unknown",
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	assistantMsg, ok := msg.(*types.AssistantMessage)
+	if !ok {
+		t.Fatal("Expected AssistantMessage")
+	}
+
+	if assistantMsg.Error == nil || *assistantMsg.Error != "unknown" {
+		t.Errorf("Expected error 'unknown', got %v", assistantMsg.Error)
+	}
+}
+
+func TestParseAssistantMessageWithRateLimitError(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "assistant",
+		"message": map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "Rate limit exceeded",
+				},
+			},
+			"model": "<synthetic>",
+		},
+		"error": "rate_limit",
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	assistantMsg, ok := msg.(*types.AssistantMessage)
+	if !ok {
+		t.Fatal("Expected AssistantMessage")
+	}
+
+	if assistantMsg.Error == nil || *assistantMsg.Error != "rate_limit" {
+		t.Errorf("Expected error 'rate_limit', got %v", assistantMsg.Error)
+	}
+}
+
+func TestParseAssistantMessageWithoutError(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "assistant",
+		"message": map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "Hello",
+				},
+			},
+			"model": "claude-opus-4-5-20251101",
+		},
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	assistantMsg, ok := msg.(*types.AssistantMessage)
+	if !ok {
+		t.Fatal("Expected AssistantMessage")
+	}
+
+	if assistantMsg.Error != nil {
+		t.Errorf("Expected error to be nil, got %v", assistantMsg.Error)
+	}
+}
+
+// ============================================================================
+// Error Cases Tests
+// ============================================================================
+
+func TestParseMessageInvalidDataType(t *testing.T) {
+	// Test with non-map data - in Go we can't pass non-map to ParseMessage
+	// but we can test nil
+	_, err := ParseMessage(nil)
+	if err == nil {
+		t.Error("Expected error for nil data")
+	}
+}
+
+func TestParseAssistantMessageInvalidContent(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "assistant",
+		"message": map[string]interface{}{
+			"content": "not an array", // Should be array
+			"model":   "claude-sonnet-4-20250514",
+		},
+	}
+
+	_, err := ParseMessage(data)
+	if err == nil {
+		t.Error("Expected error for invalid content type")
+	}
+}
+
+func TestParseAssistantMessageWithParentToolUseID(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "assistant",
+		"message": map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "Hello",
+				},
+			},
+			"model": "claude-opus-4-1-20250805",
+		},
+		"parent_tool_use_id": "toolu_01Xrwd5Y13sEHtzScxR77So8",
+	}
+
+	msg, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	assistantMsg, ok := msg.(*types.AssistantMessage)
+	if !ok {
+		t.Fatal("Expected AssistantMessage")
+	}
+
+	if assistantMsg.ParentToolUseID == nil || *assistantMsg.ParentToolUseID != "toolu_01Xrwd5Y13sEHtzScxR77So8" {
+		t.Errorf("Expected parent_tool_use_id 'toolu_01Xrwd5Y13sEHtzScxR77So8', got %v", assistantMsg.ParentToolUseID)
+	}
+}
+
+func TestParseResultMessageMissingRequiredFields(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string]interface{}
+	}{
+		{
+			name: "missing subtype",
+			data: map[string]interface{}{
+				"type":            "result",
+				"duration_ms":     100.0,
+				"duration_api_ms": 50.0,
+				"is_error":        false,
+				"num_turns":       1.0,
+				"session_id":      "test",
+			},
+		},
+		{
+			name: "missing duration_ms",
+			data: map[string]interface{}{
+				"type":            "result",
+				"subtype":         "success",
+				"duration_api_ms": 50.0,
+				"is_error":        false,
+				"num_turns":       1.0,
+				"session_id":      "test",
+			},
+		},
+		{
+			name: "missing is_error",
+			data: map[string]interface{}{
+				"type":            "result",
+				"subtype":         "success",
+				"duration_ms":     100.0,
+				"duration_api_ms": 50.0,
+				"num_turns":       1.0,
+				"session_id":      "test",
+			},
+		},
+		{
+			name: "missing session_id",
+			data: map[string]interface{}{
+				"type":            "result",
+				"subtype":         "success",
+				"duration_ms":     100.0,
+				"duration_api_ms": 50.0,
+				"is_error":        false,
+				"num_turns":       1.0,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseMessage(tt.data)
+			if err == nil {
+				t.Error("Expected error for missing required field")
+			}
+		})
+	}
+}
+
+// ============================================================================
+// Content Block Edge Cases Tests
+// ============================================================================
+
+func TestParseToolUseBlockWithInput(t *testing.T) {
+	data := map[string]interface{}{
+		"type":  "tool_use",
+		"id":    "tool-123",
+		"name":  "Read",
+		"input": map[string]interface{}{"file_path": "/test.txt"},
+	}
+
+	block, err := parseToolUseBlock(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if block.ID != "tool-123" {
+		t.Errorf("Expected id 'tool-123', got %q", block.ID)
+	}
+	if block.Name != "Read" {
+		t.Errorf("Expected name 'Read', got %q", block.Name)
+	}
+	if block.Input == nil {
+		t.Error("Expected input to be set")
+	}
+	if block.Input["file_path"] != "/test.txt" {
+		t.Errorf("Expected file_path '/test.txt', got %v", block.Input["file_path"])
+	}
+}
+
+func TestParseToolUseBlockMissingName(t *testing.T) {
+	data := map[string]interface{}{
+		"type": "tool_use",
+		"id":   "tool-123",
+	}
+
+	_, err := parseToolUseBlock(data)
+	if err == nil {
+		t.Error("Expected error for missing name field")
+	}
+}
+
+func TestParseToolResultBlockWithContentArray(t *testing.T) {
+	data := map[string]interface{}{
+		"type":        "tool_result",
+		"tool_use_id": "tool-123",
+		"content": []interface{}{
+			map[string]interface{}{
+				"type": "text",
+				"text": "result content",
+			},
+		},
+	}
+
+	block, err := parseToolResultBlock(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if block.ToolUseID != "tool-123" {
+		t.Errorf("Expected tool_use_id 'tool-123', got %q", block.ToolUseID)
+	}
+	// Content can be any type
+	if block.Content == nil {
+		t.Error("Expected content to be set")
+	}
+}
+
+func TestParseStreamEventMissingUUID(t *testing.T) {
+	data := map[string]interface{}{
+		"type":       "stream_event",
+		"session_id": "session-123",
+		"event": map[string]interface{}{
+			"type": "content_block_start",
+		},
+	}
+
+	_, err := ParseMessage(data)
+	if err == nil {
+		t.Error("Expected error for missing uuid field")
+	}
+}
+
+func TestParseStreamEventMissingEvent(t *testing.T) {
+	data := map[string]interface{}{
+		"type":       "stream_event",
+		"uuid":       "event-123",
+		"session_id": "session-123",
+	}
+
+	_, err := ParseMessage(data)
+	if err == nil {
+		t.Error("Expected error for missing event field")
+	}
+}

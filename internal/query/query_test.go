@@ -1560,3 +1560,565 @@ func ptrEqual[T comparable](a, b *T) bool {
 	}
 	return *a == *b
 }
+
+// ============================================================================
+// Streaming Tests - Message Channel Behavior
+// ============================================================================
+
+// TestStreamingMessageChannel tests message channel behavior during streaming.
+func TestStreamingMessageChannel(t *testing.T) {
+	t.Run("messages flow through channel", func(t *testing.T) {
+		mockTransport := newMockTransport()
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+		ctx := context.Background()
+		if err := q.Start(ctx); err != nil {
+			t.Fatalf("failed to start: %v", err)
+		}
+
+		// Send messages to transport
+		messages := []map[string]interface{}{
+			{"type": "assistant", "message": map[string]interface{}{"content": "Hello"}},
+			{"type": "user", "message": map[string]interface{}{"content": "Hi"}},
+			{"type": "result", "subtype": "success"},
+		}
+
+		for _, msg := range messages {
+			mockTransport.sendMessage(msg)
+		}
+
+		// Receive messages
+		receivedCount := 0
+		timeout := time.After(2 * time.Second)
+		msgChan := q.ReceiveMessages(ctx)
+
+		for receivedCount < 3 {
+			select {
+			case msg, ok := <-msgChan:
+				if !ok {
+					t.Fatal("channel closed unexpectedly")
+				}
+				receivedCount++
+				msgType, _ := msg["type"].(string)
+				t.Logf("Received message type: %s", msgType)
+			case <-timeout:
+				t.Fatalf("timeout waiting for messages, received %d", receivedCount)
+			}
+		}
+
+		_ = q.Close(ctx)
+	})
+
+	t.Run("channel closes on end message", func(t *testing.T) {
+		mockTransport := newMockTransport()
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+		ctx := context.Background()
+		_ = q.Start(ctx)
+
+		// Send end message
+		mockTransport.sendMessage(map[string]interface{}{"type": "end"})
+
+		msgChan := q.ReceiveMessages(ctx)
+		_, ok := <-msgChan
+		if ok {
+			t.Error("expected channel to be closed after end message")
+		}
+
+		_ = q.Close(ctx)
+	})
+
+	t.Run("channel handles error message", func(t *testing.T) {
+		mockTransport := newMockTransport()
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+		ctx := context.Background()
+		_ = q.Start(ctx)
+
+		// Send error message
+		mockTransport.sendMessage(map[string]interface{}{
+			"type":  "error",
+			"error": "test error",
+		})
+
+		msgChan := q.ReceiveMessages(ctx)
+
+		select {
+		case msg, ok := <-msgChan:
+			if !ok {
+				t.Fatal("channel closed without delivering error")
+			}
+			if msg["type"] != "error" {
+				t.Errorf("expected error message, got %v", msg)
+			}
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for error message")
+		}
+
+		_ = q.Close(ctx)
+	})
+}
+
+// TestConcurrentStreaming tests concurrent access to streaming.
+func TestConcurrentStreaming(t *testing.T) {
+	t.Run("concurrent send and receive", func(t *testing.T) {
+		mockTransport := newMockTransport()
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+		ctx := context.Background()
+		_ = q.Start(ctx)
+
+		var wg sync.WaitGroup
+		sentCount := 0
+		receivedCount := 0
+
+		// Start multiple goroutines sending messages
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				for j := 0; j < 10; j++ {
+					mockTransport.sendMessage(map[string]interface{}{
+						"type":    "assistant",
+						"id":      id,
+						"message": j,
+					})
+					sentCount++
+				}
+			}(i)
+		}
+
+		// Receive messages in separate goroutine
+		done := make(chan struct{})
+		go func() {
+			msgChan := q.ReceiveMessages(ctx)
+			for {
+				select {
+				case _, ok := <-msgChan:
+					if !ok {
+						return
+					}
+					receivedCount++
+				case <-ctx.Done():
+					return
+				case <-done:
+					return
+				}
+			}
+		}()
+
+		wg.Wait()
+
+		// Give time for messages to be received
+		time.Sleep(100 * time.Millisecond)
+		close(done)
+
+		_ = q.Close(ctx)
+
+		t.Logf("Sent %d, received %d messages", sentCount, receivedCount)
+	})
+
+	t.Run("concurrent initialize and close", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			mockTransport := newMockTransport()
+			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			var initErr, closeErr error
+
+			go func() {
+				defer wg.Done()
+				// Initialize may fail if close happens first
+				_, initErr = q.Initialize(context.Background())
+			}()
+
+			go func() {
+				defer wg.Done()
+				time.Sleep(time.Duration(i) * time.Millisecond)
+				closeErr = q.Close(context.Background())
+			}()
+
+			wg.Wait()
+			// One of them may error due to timing, but should not panic
+			t.Logf("Init err: %v, Close err: %v", initErr, closeErr)
+		}
+	})
+}
+
+// TestStreamInputChannelClosure tests handling of input stream closure.
+func TestStreamInputChannelClosure(t *testing.T) {
+	t.Run("closes transport on stream end", func(t *testing.T) {
+		mockTransport := newMockTransport()
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+		ctx := context.Background()
+		_ = q.Start(ctx)
+
+		// Create input stream that closes immediately
+		inputChan := make(chan map[string]interface{})
+		close(inputChan)
+
+		err := q.StreamInput(ctx, inputChan)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		// EndInput should be called
+		if !mockTransport.wasEndInputCalled() {
+			t.Error("expected EndInput to be called")
+		}
+
+		_ = q.Close(ctx)
+	})
+
+	t.Run("waits for first result with hooks", func(t *testing.T) {
+		mockTransport := newMockTransport()
+
+		// Create hooks to trigger bidirectional mode
+		hooks := map[string][]HookMatcher{
+			"PreToolUse": {{Matcher: "Bash", Hooks: []HookCallbackFunc{func(ctx context.Context, input interface{}, toolUseID *string, context types.HookContext) (map[string]interface{}, error) {
+				return map[string]interface{}{}, nil
+			}}}},
+		}
+
+		q := NewQuery(mockTransport, true, nil, hooks, nil, 30*time.Second, nil)
+
+		ctx := context.Background()
+		_ = q.Start(ctx)
+
+		// Create input stream
+		inputChan := make(chan map[string]interface{})
+
+		var streamErr error
+		done := make(chan struct{})
+
+		go func() {
+			streamErr = q.StreamInput(ctx, inputChan)
+			close(done)
+		}()
+
+		// Send result message to unblock
+		time.Sleep(50 * time.Millisecond)
+		mockTransport.sendMessage(map[string]interface{}{"type": "result", "subtype": "success"})
+
+		// Close input
+		close(inputChan)
+
+		select {
+		case <-done:
+			// Stream finished
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for stream to finish")
+		}
+
+		if streamErr != nil {
+			t.Errorf("unexpected error: %v", streamErr)
+		}
+
+		_ = q.Close(ctx)
+	})
+}
+
+// TestReceiveMessagesChannelClosure tests ReceiveMessages channel closure.
+func TestReceiveMessagesChannelClosure(t *testing.T) {
+	t.Run("channel closes on context cancel", func(t *testing.T) {
+		mockTransport := newMockTransport()
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		_ = q.Start(ctx)
+
+		msgChan := q.ReceiveMessages(ctx)
+
+		// Cancel context
+		cancel()
+
+		// Channel should close
+		select {
+		case _, ok := <-msgChan:
+			if ok {
+				t.Error("expected channel to close on context cancel")
+			}
+		case <-time.After(1 * time.Second):
+			t.Error("timeout waiting for channel to close")
+		}
+	})
+}
+
+// ============================================================================
+// Tool Permission Callback Tests - Comprehensive Coverage
+// ============================================================================
+
+// TestToolPermissionCallbackWithInputModification tests modifying tool input.
+func TestToolPermissionCallbackWithInputModification(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	var callbackInvoked bool
+	callback := func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
+		callbackInvoked = true
+
+		// Verify tool name
+		if toolName != "WriteTool" {
+			t.Errorf("expected tool name 'WriteTool', got %q", toolName)
+		}
+
+		// Modify input
+		modifiedInput := make(map[string]interface{})
+		for k, v := range input {
+			modifiedInput[k] = v
+		}
+		modifiedInput["safe_mode"] = true
+
+		return types.PermissionResultAllow{
+			Behavior:      "allow",
+			UpdatedInput:  modifiedInput,
+		}, nil
+	}
+
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	request := map[string]interface{}{
+		"request_id": "req-modify",
+		"request": map[string]interface{}{
+			"subtype":   "can_use_tool",
+			"tool_name": "WriteTool",
+			"input":     map[string]interface{}{"file_path": "/etc/passwd"},
+		},
+	}
+
+	q.handleControlRequest(ctx, request)
+
+	if !callbackInvoked {
+		t.Error("callback was not invoked")
+	}
+
+	writes := mockTransport.getWriteCalls()
+	if len(writes) != 1 {
+		t.Fatalf("expected 1 write, got %d", len(writes))
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(writes[0]), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	response := resp["response"].(map[string]interface{})
+	data := response["response"].(map[string]interface{})
+
+	if data["behavior"] != "allow" {
+		t.Errorf("expected behavior 'allow', got %v", data["behavior"])
+	}
+
+	updatedInput := data["updatedInput"].(map[string]interface{})
+	if updatedInput["safe_mode"] != true {
+		t.Errorf("expected safe_mode to be true, got %v", updatedInput["safe_mode"])
+	}
+}
+
+// TestToolPermissionCallbackWithUpdatedPermissions tests permission updates.
+func TestToolPermissionCallbackWithUpdatedPermissions(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	updatedPerms := []types.PermissionUpdate{
+		{
+			Type:        types.PermissionUpdateTypeAddRules,
+			Destination: types.PermissionUpdateDestinationPtr(types.PermissionUpdateDestinationSession),
+			Rules: []types.PermissionRuleValue{
+				{ToolName: "Bash", RuleContent: strPtr("ls")},
+			},
+		},
+	}
+
+	callback := func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
+		return types.PermissionResultAllow{
+			Behavior:           "allow",
+			UpdatedPermissions: updatedPerms,
+		}, nil
+	}
+
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	request := map[string]interface{}{
+		"request_id": "req-perms",
+		"request": map[string]interface{}{
+			"subtype":   "can_use_tool",
+			"tool_name": "Bash",
+			"input":     map[string]interface{}{"command": "ls"},
+		},
+	}
+
+	q.handleControlRequest(ctx, request)
+
+	writes := mockTransport.getWriteCalls()
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(writes[0]), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	response := resp["response"].(map[string]interface{})
+	data := response["response"].(map[string]interface{})
+
+	updatedPermsResp, ok := data["updatedPermissions"].([]interface{})
+	if !ok {
+		t.Fatal("expected updatedPermissions in response")
+	}
+	if len(updatedPermsResp) != 1 {
+		t.Errorf("expected 1 permission update, got %d", len(updatedPermsResp))
+	}
+}
+
+// TestToolPermissionCallbackDenyWithInterrupt tests deny with interrupt.
+func TestToolPermissionCallbackDenyWithInterrupt(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	callback := func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
+		return types.PermissionResultDeny{
+			Behavior:   "deny",
+			Message:    "Security policy violation",
+			Interrupt:  true,
+		}, nil
+	}
+
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	request := map[string]interface{}{
+		"request_id": "req-deny",
+		"request": map[string]interface{}{
+			"subtype":   "can_use_tool",
+			"tool_name": "DangerousTool",
+			"input":     map[string]interface{}{"command": "rm -rf /"},
+		},
+	}
+
+	q.handleControlRequest(ctx, request)
+
+	writes := mockTransport.getWriteCalls()
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(writes[0]), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	response := resp["response"].(map[string]interface{})
+	data := response["response"].(map[string]interface{})
+
+	if data["behavior"] != "deny" {
+		t.Errorf("expected behavior 'deny', got %v", data["behavior"])
+	}
+	if data["message"] != "Security policy violation" {
+		t.Errorf("expected message 'Security policy violation', got %v", data["message"])
+	}
+	if data["interrupt"] != true {
+		t.Errorf("expected interrupt to be true, got %v", data["interrupt"])
+	}
+}
+
+// TestToolPermissionCallbackExceptionHandling tests callback error handling.
+func TestToolPermissionCallbackExceptionHandling(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	callback := func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
+		return nil, errors.New("callback error")
+	}
+
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	request := map[string]interface{}{
+		"request_id": "req-error",
+		"request": map[string]interface{}{
+			"subtype":   "can_use_tool",
+			"tool_name": "TestTool",
+			"input":     map[string]interface{}{},
+		},
+	}
+
+	q.handleControlRequest(ctx, request)
+
+	writes := mockTransport.getWriteCalls()
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(writes[0]), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	response := resp["response"].(map[string]interface{})
+	if response["subtype"] != "error" {
+		t.Errorf("expected subtype 'error', got %v", response["subtype"])
+	}
+	if !containsSubstring(response["error"].(string), "callback error") {
+		t.Errorf("expected error to contain 'callback error', got %v", response["error"])
+	}
+}
+
+// TestToolPermissionCallbackWithSuggestions tests handling permission suggestions.
+func TestToolPermissionCallbackWithSuggestions(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	var receivedSuggestions []types.PermissionUpdate
+	callback := func(ctx context.Context, toolName string, input map[string]interface{}, permContext types.ToolPermissionContext) (types.PermissionResult, error) {
+		receivedSuggestions = permContext.Suggestions
+		return types.PermissionResultAllow{Behavior: "allow"}, nil
+	}
+
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	request := map[string]interface{}{
+		"request_id": "req-suggestions",
+		"request": map[string]interface{}{
+			"subtype":   "can_use_tool",
+			"tool_name": "Bash",
+			"input":     map[string]interface{}{"command": "ls"},
+			"permission_suggestions": []interface{}{
+				map[string]interface{}{
+					"type":  "addRules",
+					"rules": []interface{}{map[string]interface{}{"toolName": "Bash"}},
+				},
+			},
+		},
+	}
+
+	q.handleControlRequest(ctx, request)
+
+	if len(receivedSuggestions) != 1 {
+		t.Fatalf("expected 1 suggestion, got %d", len(receivedSuggestions))
+	}
+	if receivedSuggestions[0].Type != types.PermissionUpdateTypeAddRules {
+		t.Errorf("expected type 'addRules', got %v", receivedSuggestions[0].Type)
+	}
+}
+
+// TestToolPermissionCallbackMissing tests missing callback.
+func TestToolPermissionCallbackMissing(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	// No callback provided
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	request := map[string]interface{}{
+		"request_id": "req-no-callback",
+		"request": map[string]interface{}{
+			"subtype":   "can_use_tool",
+			"tool_name": "TestTool",
+			"input":     map[string]interface{}{},
+		},
+	}
+
+	q.handleControlRequest(ctx, request)
+
+	writes := mockTransport.getWriteCalls()
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(writes[0]), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	response := resp["response"].(map[string]interface{})
+	if response["subtype"] != "error" {
+		t.Errorf("expected error response, got %v", response["subtype"])
+	}
+}
