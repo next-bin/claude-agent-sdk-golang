@@ -14,12 +14,12 @@ import (
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
-// SkipIfNoAPIKey prints a warning and skips the test if ANTHROPIC_API_KEY is not set.
+// SkipIfNoAPIKey prints a warning if ANTHROPIC_API_KEY is not set.
+// Tests will continue to run but may fail without a valid API key.
 func SkipIfNoAPIKey(t *testing.T) {
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		t.Log("⚠️  WARNING: ANTHROPIC_API_KEY not set - test requires API key to run")
 		t.Log("   To run this test, set ANTHROPIC_API_KEY environment variable")
-		t.Skip("Skipping: ANTHROPIC_API_KEY not set")
 	}
 }
 
