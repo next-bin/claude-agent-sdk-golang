@@ -369,9 +369,9 @@ func TestSDKErrorAlias(t *testing.T) {
 func TestErrorTypeHierarchy(t *testing.T) {
 	// Test that specific error types can be checked
 	tests := []struct {
-		name     string
-		err      error
-		isTimeout bool
+		name          string
+		err           error
+		isTimeout     bool
 		isInterrupted bool
 	}{
 		{"ErrTimeout", ErrTimeout, true, false},

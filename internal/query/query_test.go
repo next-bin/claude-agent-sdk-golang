@@ -1872,8 +1872,8 @@ func TestToolPermissionCallbackWithInputModification(t *testing.T) {
 		modifiedInput["safe_mode"] = true
 
 		return types.PermissionResultAllow{
-			Behavior:      "allow",
-			UpdatedInput:  modifiedInput,
+			Behavior:     "allow",
+			UpdatedInput: modifiedInput,
 		}, nil
 	}
 
@@ -1977,9 +1977,9 @@ func TestToolPermissionCallbackDenyWithInterrupt(t *testing.T) {
 
 	callback := func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
 		return types.PermissionResultDeny{
-			Behavior:   "deny",
-			Message:    "Security policy violation",
-			Interrupt:  true,
+			Behavior:  "deny",
+			Message:   "Security policy violation",
+			Interrupt: true,
 		}, nil
 	}
 

@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
 // SkipIfNoAPIKey skips the test if ANTHROPIC_API_KEY is not set.
@@ -49,4 +51,31 @@ func DefaultTestConfig() *TestConfig {
 // HasAPIKey returns true if API key is available.
 func HasAPIKey() bool {
 	return os.Getenv("ANTHROPIC_API_KEY") != ""
+}
+
+// Helper functions for pointer types
+
+// permissionModePtr returns a pointer to a PermissionMode.
+func permissionModePtr(mode types.PermissionMode) *types.PermissionMode {
+	return &mode
+}
+
+// stringPtr returns a pointer to a string.
+func stringPtr(s string) *string {
+	return &s
+}
+
+// intPtr returns a pointer to an int.
+func intPtr(i int) *int {
+	return &i
+}
+
+// float64Ptr returns a pointer to a float64.
+func float64Ptr(f float64) *float64 {
+	return &f
+}
+
+// boolPtr returns a pointer to a bool.
+func boolPtr(b bool) *bool {
+	return &b
 }

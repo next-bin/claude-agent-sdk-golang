@@ -780,17 +780,17 @@ func TestParseUserMessageWithMixedContent(t *testing.T) {
 
 func TestParseUserMessageWithToolUseResultAndStructuredPatch(t *testing.T) {
 	toolResultData := map[string]interface{}{
-		"filePath": "/path/to/file.py",
-		"oldString": "old code",
-		"newString": "new code",
+		"filePath":     "/path/to/file.py",
+		"oldString":    "old code",
+		"newString":    "new code",
 		"originalFile": "full file contents",
 		"structuredPatch": []interface{}{
 			map[string]interface{}{
-				"oldStart":  float64(33),
-				"oldLines":  float64(7),
-				"newStart":  float64(33),
-				"newLines":  float64(7),
-				"lines":     []interface{}{"   # comment", "-      old line", "+      new line"},
+				"oldStart": float64(33),
+				"oldLines": float64(7),
+				"newStart": float64(33),
+				"newLines": float64(7),
+				"lines":    []interface{}{"   # comment", "-      old line", "+      new line"},
 			},
 		},
 		"userModified": false,
