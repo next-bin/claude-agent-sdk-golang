@@ -194,6 +194,10 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 })
 ```
 
+A **hook** is a Go function that the Claude Code _application_ (_not_ Claude) invokes at specific points of the Claude agent loop. Hooks can provide deterministic processing and automated feedback for Claude. Read more in [Claude Code Hooks Reference](https://docs.anthropic.com/en/docs/claude-code/hooks).
+
+For comprehensive examples, see [examples/hooks/main.go](examples/hooks/main.go).
+
 ## API Reference
 
 ### `Query(ctx, prompt, options)`
@@ -232,6 +236,10 @@ Full-featured client for interactive conversations.
 - `ToolUseMessage`: Tool use started
 - `ToolResultMessage`: Tool execution result
 - `PermissionRequestMessage`: Permission request
+
+## Available Tools
+
+See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude) for a complete list of available tools.
 
 ## Error Handling
 

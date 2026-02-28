@@ -19,9 +19,14 @@ import (
 )
 
 // Client represents a Claude SDK client for bidirectional, interactive conversations.
+// It provides full control over the conversation flow with support for streaming,
+// interrupts, and dynamic message sending. For simple one-shot queries, consider
+// using the Query function instead.
 //
-// This client provides full control over the conversation flow with support
-// for streaming, interrupts, and dynamic message sending.
+// Client supports bidirectional message passing, maintains conversation state,
+// allows interactive follow-ups, and provides interrupt capabilities. It is
+// suitable for building chat interfaces, interactive debugging sessions,
+// multi-turn conversations, and real-time applications.
 type Client struct {
 	options         *types.ClaudeAgentOptions
 	customTransport query.Transport
@@ -51,9 +56,17 @@ func (c *Client) Options() *types.ClaudeAgentOptions {
 }
 
 // Connect establishes a connection to Claude with an optional prompt.
+// It initializes the Claude CLI subprocess and prepares for message exchange.
 //
-// For interactive use without an initial prompt, call Connect() with no arguments.
-// For one-shot queries, provide a prompt string or channel.
+// For interactive use without an initial prompt, call Connect with no arguments.
+// For one-shot queries, provide a prompt string or a channel of message dictionaries.
+//
+// The prompt parameter can be:
+//   - A string for a single message
+//   - A channel of map[string]interface{} for streaming messages
+//
+// Connect returns an error if the connection fails or if permission settings
+// are invalid (e.g., CanUseTool and PermissionPromptToolName are both set).
 func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 	if c.connected {
 		return nil
@@ -438,6 +451,11 @@ func parseUserPromptSubmitHookInput(m map[string]interface{}) types.UserPromptSu
 }
 
 // ReceiveMessages returns a channel for receiving all messages from Claude.
+// The channel yields Message types including AssistantMessage, UserMessage,
+// SystemMessage, and ResultMessage. The channel is closed when the context
+// is cancelled or the query completes.
+//
+// ReceiveMessages returns nil if the query is not initialized.
 func (c *Client) ReceiveMessages(ctx context.Context) <-chan types.Message {
 	output := make(chan types.Message)
 
@@ -470,10 +488,20 @@ func (c *Client) ReceiveMessages(ctx context.Context) <-chan types.Message {
 	return output
 }
 
-// Query sends a new request in streaming mode.
+// Query sends a new request in streaming mode. The prompt can be a string
+// message or a channel of message dictionaries. The optional sessionID
+// parameter specifies the session identifier; if not provided, it defaults to "default".
 //
-// prompt can be a string or a channel of message dictionaries.
-// sessionID is an optional session identifier for the conversation.
+// For channel prompts, each message should have the structure:
+//
+//	map[string]interface{}{
+//	    "type": "user",
+//	    "message": map[string]interface{}{"role": "user", "content": "..."},
+//	    "session_id": "...",
+//	}
+//
+// Query returns a channel of Message types from the conversation, or an error
+// if the client is not connected.
 func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...string) (<-chan types.Message, error) {
 	if !c.connected || c.query == nil || c.transport == nil {
 		return nil, errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
@@ -515,7 +543,9 @@ func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...str
 	return c.ReceiveMessages(ctx), nil
 }
 
-// Interrupt sends an interrupt signal (only works with streaming mode).
+// Interrupt sends an interrupt signal to the running conversation.
+// It only works in streaming mode. Interrupt returns an error if the client
+// is not connected.
 func (c *Client) Interrupt(ctx context.Context) error {
 	if !c.connected || c.query == nil {
 		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
@@ -523,9 +553,15 @@ func (c *Client) Interrupt(ctx context.Context) error {
 	return c.query.Interrupt(ctx)
 }
 
-// SetPermissionMode changes permission mode during conversation.
+// SetPermissionMode changes the permission mode during a conversation.
+// It only works in streaming mode.
 //
-// Valid modes: "default", "acceptEdits", "plan", "bypassPermissions"
+// The mode parameter specifies the permission mode to set. Valid options are:
+//   - "default": CLI prompts for dangerous tools
+//   - "acceptEdits": auto-accept file edits
+//   - "bypassPermissions": allow all tools (use with caution)
+//
+// SetPermissionMode returns an error if the client is not connected.
 func (c *Client) SetPermissionMode(ctx context.Context, mode string) error {
 	if !c.connected || c.query == nil {
 		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
@@ -533,7 +569,15 @@ func (c *Client) SetPermissionMode(ctx context.Context, mode string) error {
 	return c.query.SetPermissionMode(ctx, mode)
 }
 
-// SetModel changes the AI model during conversation.
+// SetModel changes the AI model during a conversation.
+// It only works in streaming mode.
+//
+// The model parameter specifies the model to use. Examples include:
+//   - "claude-sonnet-4-5"
+//   - "claude-opus-4-1-20250805"
+//   - "claude-opus-4-20250514"
+//
+// SetModel returns an error if the client is not connected.
 func (c *Client) SetModel(ctx context.Context, model string) error {
 	if !c.connected || c.query == nil {
 		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
@@ -542,8 +586,17 @@ func (c *Client) SetModel(ctx context.Context, model string) error {
 }
 
 // RewindFiles rewinds tracked files to their state at a specific user message.
+// It only works in streaming mode.
 //
-// Requires enable_file_checkpointing=True to track file changes.
+// Requirements:
+//   - EnableFileCheckpointing must be true to track file changes
+//   - ExtraArgs must include "replay-user-messages" to receive UserMessage
+//     objects with UUID in the response stream
+//
+// The userMessageID parameter is the UUID of the user message to rewind to.
+// This should be the UUID field from a UserMessage received during the conversation.
+//
+// RewindFiles returns an error if the client is not connected.
 func (c *Client) RewindFiles(ctx context.Context, userMessageID string) error {
 	if !c.connected || c.query == nil {
 		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
@@ -551,7 +604,19 @@ func (c *Client) RewindFiles(ctx context.Context, userMessageID string) error {
 	return c.query.RewindFiles(ctx, userMessageID)
 }
 
-// GetMCPStatus gets current MCP server connection status.
+// GetMCPStatus returns the current MCP server connection status.
+// It only works in streaming mode.
+//
+// GetMCPStatus queries the Claude Code CLI for the live connection status
+// of all configured MCP servers.
+//
+// The returned map contains an "mcpServers" key with a list of server status
+// objects, each having:
+//   - "name": server name (string)
+//   - "status": connection status ("connected", "pending", "failed",
+//     "needs-auth", or "disabled")
+//
+// GetMCPStatus returns an error if the client is not connected.
 func (c *Client) GetMCPStatus(ctx context.Context) (map[string]interface{}, error) {
 	if !c.connected || c.query == nil {
 		return nil, errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
@@ -559,7 +624,12 @@ func (c *Client) GetMCPStatus(ctx context.Context) (map[string]interface{}, erro
 	return c.query.GetMCPStatus(ctx)
 }
 
-// GetServerInfo returns server initialization info.
+// GetServerInfo returns server initialization information including:
+//   - Available commands (slash commands, system commands, etc.)
+//   - Current and available output styles
+//   - Server capabilities
+//
+// GetServerInfo returns nil if not in streaming mode or if the query is not initialized.
 func (c *Client) GetServerInfo() map[string]interface{} {
 	if c.query == nil {
 		return nil
@@ -568,8 +638,15 @@ func (c *Client) GetServerInfo() map[string]interface{} {
 }
 
 // ReceiveResponse receives messages until and including a ResultMessage.
+// It is a convenience method over ReceiveMessages for single-response workflows.
 //
-// This is a convenience method over ReceiveMessages for single-response workflows.
+// ReceiveResponse yields all messages in sequence and automatically terminates
+// after yielding a ResultMessage (which indicates the response is complete).
+// The ResultMessage is included in the yielded messages. If no ResultMessage
+// is received, the iterator continues indefinitely.
+//
+// ReceiveResponse returns a channel of Message types (UserMessage, AssistantMessage,
+// SystemMessage, or ResultMessage).
 func (c *Client) ReceiveResponse(ctx context.Context) <-chan types.Message {
 	output := make(chan types.Message)
 
@@ -595,7 +672,8 @@ func (c *Client) ReceiveResponse(ctx context.Context) <-chan types.Message {
 	return output
 }
 
-// Disconnect closes the connection to Claude.
+// Disconnect closes the connection to Claude and releases associated resources.
+// It is safe to call Disconnect multiple times; subsequent calls are no-ops.
 func (c *Client) Disconnect(ctx context.Context) error {
 	if !c.connected {
 		return nil
@@ -612,7 +690,8 @@ func (c *Client) Disconnect(ctx context.Context) error {
 }
 
 // Close releases any resources held by the client.
-// Alias for Disconnect for convenience.
+// It is an alias for Disconnect for convenience and idiomatically matches
+// the io.Closer interface.
 func (c *Client) Close() error {
 	return c.Disconnect(context.Background())
 }

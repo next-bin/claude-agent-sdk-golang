@@ -460,33 +460,27 @@ func (h SessionEndHookSpecificOutput) GetHookEventName() string { return h.HookE
 // ============================================================================
 
 // AsyncHookJSONOutput represents async hook output that defers hook execution.
+// Set Async_ to true to defer hook execution; it is converted to "async" when
+// sent to the CLI. AsyncTimeout is an optional timeout in milliseconds.
+//
 // See https://docs.anthropic.com/en/docs/claude-code/hooks#advanced%3A-json-output
 type AsyncHookJSONOutput struct {
-	Async_       bool `json:"async"` // Using Async_ to match Python's async_
+	Async_       bool `json:"async"` // Converted to "async" when sent to CLI
 	AsyncTimeout *int `json:"asyncTimeout,omitempty"`
 }
 
 // SyncHookJSONOutput represents synchronous hook output with control and decision fields.
-//
-// Common Control Fields:
-//   - Continue_: SuppressOutput, StopReason: Control execution flow
-//   - Decision, SystemMessage, Reason: Provide feedback and decisions
-//   - HookSpecificOutput: Event-specific controls
+// It defines the structure for hook callbacks to control execution and provide feedback to Claude.
 //
 // See https://docs.anthropic.com/en/docs/claude-code/hooks#advanced%3A-json-output
 type SyncHookJSONOutput struct {
-	// Common control fields
-	Continue_      *bool   `json:"continue,omitempty"` // Using Continue_ to match Python's continue_
-	SuppressOutput *bool   `json:"suppressOutput,omitempty"`
-	StopReason     *string `json:"stopReason,omitempty"`
-
-	// Decision fields
-	Decision      *string `json:"decision,omitempty"` // Only "block" is meaningful
-	SystemMessage *string `json:"systemMessage,omitempty"`
-	Reason        *string `json:"reason,omitempty"`
-
-	// Hook-specific outputs
-	HookSpecificOutput HookSpecificOutput `json:"hookSpecificOutput,omitempty"`
+	Continue_          *bool              `json:"continue,omitempty"`           // Whether to proceed after hook (default: true), converted to "continue" for CLI
+	SuppressOutput     *bool              `json:"suppressOutput,omitempty"`     // Hide stdout from transcript mode (default: false)
+	StopReason         *string            `json:"stopReason,omitempty"`         // Message shown when continue is false
+	Decision           *string            `json:"decision,omitempty"`           // Set to "block" to indicate blocking behavior
+	SystemMessage      *string            `json:"systemMessage,omitempty"`      // Warning message displayed to the user
+	Reason             *string            `json:"reason,omitempty"`             // Feedback message for Claude about the decision
+	HookSpecificOutput HookSpecificOutput `json:"hookSpecificOutput,omitempty"` // Event-specific controls
 }
 
 // HookJSONOutput is a union of AsyncHookJSONOutput and SyncHookJSONOutput.
@@ -501,23 +495,24 @@ func (h AsyncHookJSONOutput) IsAsync() bool { return h.Async_ }
 func (h SyncHookJSONOutput) IsAsync() bool { return false }
 
 // HookContext provides context information for hook callbacks.
+// Signal is reserved for future abort signal support (currently always nil).
 type HookContext struct {
-	Signal interface{} `json:"signal"` // Future: abort signal support, currently always nil
+	Signal interface{} `json:"signal"` // Reserved for abort signal support, currently always nil
 }
 
 // HookMatcher represents hook matcher configuration.
-// See https://docs.anthropic.com/en/docs/claude-code/hooks#structure for the
-// expected string value. For example, for PreToolUse, the matcher can be
-// a tool name like "Bash" or a combination of tool names like "Write|MultiEdit|Edit".
+// Matcher is a string pattern to match tool names (e.g., "Bash" or "Write|MultiEdit|Edit").
+// See https://docs.anthropic.com/en/docs/claude-code/hooks#structure for expected string values.
+// Hooks is a list of HookCallback implementations to execute.
+// Timeout is the timeout in seconds for all hooks in this matcher (default: 60).
 type HookMatcher struct {
 	Matcher string         `json:"matcher,omitempty"`
 	Hooks   []HookCallback `json:"hooks,omitempty"`
 	Timeout *float64       `json:"timeout,omitempty"` // Timeout in seconds (default: 60)
 }
 
-// HookCallback is the function signature for hook callbacks.
-// Note: In Go, this would typically be a function type, but we define it as
-// an interface for flexibility. Users should implement this interface.
+// HookCallback is the interface for hook callbacks. Users must implement
+// the Execute method to handle hook events.
 type HookCallback interface {
 	Execute(input HookInput, toolUseID *string, context HookContext) (HookJSONOutput, error)
 }
@@ -593,6 +588,7 @@ type SdkPluginConfig struct {
 // ============================================================================
 
 // SandboxNetworkConfig represents network configuration for sandbox.
+// It controls network access for sandboxed bash commands.
 type SandboxNetworkConfig struct {
 	AllowUnixSockets    []string `json:"allowUnixSockets,omitempty"`    // Unix socket paths accessible in sandbox (e.g., SSH agents)
 	AllowAllUnixSockets *bool    `json:"allowAllUnixSockets,omitempty"` // Allow all Unix sockets (less secure)
