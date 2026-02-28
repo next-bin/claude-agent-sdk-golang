@@ -726,19 +726,8 @@ func (t *SubprocessCLITransport) readMessagesLoop() {
 		}
 	}
 
-	// Check process completion and handle errors
-	if t.cmd != nil {
-		if err := t.cmd.Wait(); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				exitCode := exitErr.ExitCode()
-				t.exitError = errors.NewProcessError(
-					fmt.Sprintf("Command failed with exit code %d", exitCode),
-					&exitCode,
-					"Check stderr output for details",
-				)
-			}
-		}
-	}
+	// Note: Don't call cmd.Wait() here - let Close() handle process cleanup
+	// This prevents race conditions when Close() is called while this loop is exiting
 }
 
 // checkClaudeVersion checks Claude Code version and warns if below minimum.
@@ -815,10 +804,23 @@ func (t *SubprocessCLITransport) Close(ctx context.Context) error {
 			t.stderr = nil
 		}
 
-		// Terminate and wait for process
+		// Terminate and wait for process with timeout
 		if t.cmd != nil && t.cmd.Process != nil {
 			t.cmd.Process.Kill()
-			t.cmd.Wait()
+
+			// Wait for process with timeout to prevent indefinite blocking
+			done := make(chan struct{})
+			go func() {
+				t.cmd.Wait()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				// Process exited normally
+			case <-time.After(5 * time.Second):
+				// Timeout waiting for process, continue cleanup
+			}
 		}
 
 		t.cmd = nil

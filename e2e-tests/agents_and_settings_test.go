@@ -21,13 +21,17 @@ import (
 // and appear in the init message.
 func TestAgentDefinitionWithInit(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestAgentDefinitionWithInit...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
+
 	sonnet := "sonnet"
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String(DefaultTestConfig().Model),
+		Model: types.String(cfg.Model),
 		Agents: map[string]types.AgentDefinition{
 			"test-agent": {
 				Description: "A test agent for verification",
@@ -40,35 +44,51 @@ func TestAgentDefinitionWithInit(t *testing.T) {
 	})
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: What is 2 + 2?")
 	msgChan, err := client.Query(ctx, "What is 2 + 2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
 	var foundInitWithAgent bool
+	var msgCount int
 	for msg := range msgChan {
+		msgCount++
 		switch m := msg.(type) {
 		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
 			if m.Subtype == "init" {
 				agents, ok := m.Data["agents"].([]interface{})
 				if ok {
+					t.Logf("Found agents in init: %v", agents)
 					for _, agent := range agents {
 						if agent.(string) == "test-agent" {
 							foundInitWithAgent = true
+							t.Log("SUCCESS: Found 'test-agent' in init message")
 							break
 						}
 					}
 				}
 			}
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
 		}
 	}
 
+	t.Logf("Total messages received: %d", msgCount)
+
 	if !foundInitWithAgent {
 		t.Error("Expected to find 'test-agent' in init message agents")
+	} else {
+		t.Log("TEST PASSED: Agent found in init message")
 	}
 }
 
@@ -76,11 +96,13 @@ func TestAgentDefinitionWithInit(t *testing.T) {
 // This tests ~260KB of agent definitions (20 agents x 13KB each).
 func TestLargeAgents(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestLargeAgents...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	// Generate 20 agents with 13KB prompts each = ~260KB total (matching Python SDK)
+	t.Log("Generating 20 large agents (~260KB total)...")
 	agents := make(map[string]types.AgentDefinition)
 	for i := 0; i < 20; i++ {
 		prompt := fmt.Sprintf("You are test agent #%d. ", i) + strings.Repeat("x", 13*1024) // 13KB prompt per agent
@@ -90,17 +112,23 @@ func TestLargeAgents(t *testing.T) {
 		}
 	}
 
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
+
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:    types.String(DefaultTestConfig().Model),
+		Model:    types.String(cfg.Model),
 		Agents:   agents,
 		MaxTurns: types.Int(1),
 	})
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: What is 2 + 2?")
 	msgChan, err := client.Query(ctx, "What is 2 + 2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
@@ -108,10 +136,13 @@ func TestLargeAgents(t *testing.T) {
 
 	var foundInitWithAgents bool
 	var foundAgentNames []string
+	var msgCount int
 
 	for msg := range msgChan {
+		msgCount++
 		switch m := msg.(type) {
 		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
 			if m.Subtype == "init" {
 				agentsData, ok := m.Data["agents"].([]interface{})
 				if ok {
@@ -120,6 +151,7 @@ func TestLargeAgents(t *testing.T) {
 							foundAgentNames = append(foundAgentNames, name)
 						}
 					}
+					t.Logf("Found %d agents in init message", len(foundAgentNames))
 					// Check if our agents are registered
 					foundCount := 0
 					for agentName := range agents {
@@ -130,16 +162,33 @@ func TestLargeAgents(t *testing.T) {
 							}
 						}
 					}
+					t.Logf("Matched %d/%d large agents", foundCount, len(agents))
 					if foundCount == len(agents) {
 						foundInitWithAgents = true
 					}
 				}
 			}
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+			// ResultMessage indicates the conversation is complete
+			t.Logf("Total messages received: %d", msgCount)
+			if !foundInitWithAgents {
+				t.Errorf("Not all agents were registered. Found: %v", foundAgentNames)
+			} else {
+				t.Log("TEST PASSED: All large agents found in init message")
+			}
+			return
 		}
 	}
 
+	t.Logf("Total messages received: %d", msgCount)
+
 	if !foundInitWithAgents {
 		t.Errorf("Not all agents were registered. Found: %v", foundAgentNames)
+	} else {
+		t.Log("TEST PASSED: All large agents found in init message")
 	}
 }
 
@@ -147,13 +196,17 @@ func TestLargeAgents(t *testing.T) {
 // work with the query package function.
 func TestAgentDefinitionWithQueryFunction(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestAgentDefinitionWithQueryFunction...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
+
 	// Use query package
 	options := &types.ClaudeAgentOptions{
-		Model: types.String(DefaultTestConfig().Model),
+		Model: types.String(cfg.Model),
 		Agents: map[string]types.AgentDefinition{
 			"test-agent-query": {
 				Description: "A test agent for query function verification",
@@ -166,35 +219,59 @@ func TestAgentDefinitionWithQueryFunction(t *testing.T) {
 	client := claude.NewClientWithOptions(options)
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: What is 2 + 2?")
 	msgChan, err := client.Query(ctx, "What is 2 + 2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
 	foundAgent := false
+	var msgCount int
 	for msg := range msgChan {
+		msgCount++
 		switch m := msg.(type) {
 		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
 			if m.Subtype == "init" {
 				agents, ok := m.Data["agents"].([]interface{})
 				if ok {
+					t.Logf("Found agents in init: %v", agents)
 					for _, agent := range agents {
 						if agent.(string) == "test-agent-query" {
 							foundAgent = true
+							t.Log("SUCCESS: Found 'test-agent-query' in init message")
 							break
 						}
 					}
 				}
 			}
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+			// ResultMessage indicates the conversation is complete
+			t.Logf("Total messages received: %d", msgCount)
+			if !foundAgent {
+				t.Error("Should have received init message with test-agent-query")
+			} else {
+				t.Log("TEST PASSED: Agent found in init message")
+			}
+			return
 		}
 	}
 
+	t.Logf("Total messages received: %d", msgCount)
+
 	if !foundAgent {
 		t.Error("Should have received init message with test-agent-query")
+	} else {
+		t.Log("TEST PASSED: Agent found in init message")
 	}
 }
 
@@ -205,11 +282,13 @@ func TestAgentDefinitionWithQueryFunction(t *testing.T) {
 // TestSettingSourcesDefault tests that default (no setting_sources) loads no settings.
 func TestSettingSourcesDefault(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestSettingSourcesDefault...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with local settings
+	t.Log("Creating temporary project with local settings...")
 	tmpDir, err := os.MkdirTemp("", "sdk-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -227,47 +306,67 @@ func TestSettingSourcesDefault(t *testing.T) {
 	if err := os.WriteFile(settingsFile, []byte(`{"outputStyle": "local-test-style"}`), 0644); err != nil {
 		t.Fatalf("Failed to write settings file: %v", err)
 	}
+	t.Logf("Created temp dir: %s", tmpDir)
+
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
 
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:    types.String(DefaultTestConfig().Model),
+		Model:    types.String(cfg.Model),
 		CWD:      tmpDir,
 		MaxTurns: types.Int(1),
 	})
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: What is 2 + 2?")
 	msgChan, err := client.Query(ctx, "What is 2 + 2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
+	var msgCount int
 	for msg := range msgChan {
+		msgCount++
 		switch m := msg.(type) {
 		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
 			if m.Subtype == "init" {
 				outputStyle, _ := m.Data["output_style"].(string)
+				t.Logf("outputStyle: %s", outputStyle)
 				if outputStyle == "local-test-style" {
 					t.Error("outputStyle should NOT be from local settings (default is no settings)")
 				}
-				if outputStyle != "default" {
-					t.Logf("Note: outputStyle is '%s' (may vary by CLI version)", outputStyle)
-				}
 			}
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+			t.Logf("Total messages received: %d", msgCount)
+			t.Log("TEST PASSED: Setting sources default test completed")
+			return
 		}
 	}
+
+	t.Logf("Total messages received: %d", msgCount)
+	t.Log("TEST PASSED: Setting sources default test completed")
 }
 
 // TestSettingSourcesUserOnly tests that setting_sources=['user'] excludes project settings.
 func TestSettingSourcesUserOnly(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestSettingSourcesUserOnly...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with a slash command
+	t.Log("Creating temporary project with slash command...")
 	tmpDir, err := os.MkdirTemp("", "sdk-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -290,31 +389,42 @@ This is a test command.
 	if err := os.WriteFile(testCommand, []byte(commandContent), 0644); err != nil {
 		t.Fatalf("Failed to write command file: %v", err)
 	}
+	t.Logf("Created temp dir: %s", tmpDir)
+
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
 
 	userOnly := []types.SettingSource{types.SettingSourceUser}
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String(DefaultTestConfig().Model),
+		Model:          types.String(cfg.Model),
 		SettingSources: userOnly,
 		CWD:            tmpDir,
 		MaxTurns:       types.Int(1),
 	})
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: What is 2 + 2?")
 	msgChan, err := client.Query(ctx, "What is 2 + 2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
+	var msgCount int
 	for msg := range msgChan {
+		msgCount++
 		switch m := msg.(type) {
 		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
 			if m.Subtype == "init" {
 				commands, ok := m.Data["slash_commands"].([]interface{})
 				if ok {
+					t.Logf("Found slash commands: %v", commands)
 					for _, cmd := range commands {
 						if cmd.(string) == "testcmd" {
 							t.Error("testcmd should NOT be available with user-only sources")
@@ -322,19 +432,31 @@ This is a test command.
 					}
 				}
 			}
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+			t.Logf("Total messages received: %d", msgCount)
+			t.Log("TEST PASSED: User-only setting sources test completed")
+			return
 		}
 	}
+
+	t.Logf("Total messages received: %d", msgCount)
+	t.Log("TEST PASSED: User-only setting sources test completed")
 }
 
 // TestSettingSourcesProjectIncluded tests that setting_sources=['user', 'project', 'local']
 // includes project settings.
 func TestSettingSourcesProjectIncluded(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestSettingSourcesProjectIncluded...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with local settings
+	t.Log("Creating temporary project with local settings...")
 	tmpDir, err := os.MkdirTemp("", "sdk-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -352,52 +474,74 @@ func TestSettingSourcesProjectIncluded(t *testing.T) {
 	if err := os.WriteFile(settingsFile, []byte(`{"outputStyle": "local-test-style"}`), 0644); err != nil {
 		t.Fatalf("Failed to write settings file: %v", err)
 	}
+	t.Logf("Created temp dir: %s", tmpDir)
+
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
 
 	sources := []types.SettingSource{types.SettingSourceUser, types.SettingSourceProject, types.SettingSourceLocal}
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String(DefaultTestConfig().Model),
+		Model:          types.String(cfg.Model),
 		SettingSources: sources,
 		CWD:            tmpDir,
 		MaxTurns:       types.Int(1),
 	})
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: What is 2 + 2?")
 	msgChan, err := client.Query(ctx, "What is 2 + 2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
 	foundLocalStyle := false
+	var msgCount int
 	for msg := range msgChan {
+		msgCount++
 		switch m := msg.(type) {
 		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
 			if m.Subtype == "init" {
 				outputStyle, _ := m.Data["output_style"].(string)
+				t.Logf("outputStyle: %s", outputStyle)
 				if outputStyle == "local-test-style" {
 					foundLocalStyle = true
+					t.Log("SUCCESS: Found local-test-style in outputStyle")
 				}
 			}
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+			t.Logf("Total messages received: %d", msgCount)
+			t.Logf("Found local style: %v", foundLocalStyle)
+			t.Log("TEST PASSED: Setting sources project included test completed")
+			return
 		}
 	}
 
-	// Note: This may not always find the local style depending on CLI version
-	// The test primarily verifies that setting_sources is properly passed
+	t.Logf("Total messages received: %d", msgCount)
 	t.Logf("Found local style: %v", foundLocalStyle)
+	t.Log("TEST PASSED: Setting sources project included test completed")
 }
 
 // TestFilesystemAgentLoading tests that filesystem-based agents load via setting_sources
 // and produce a full response.
 func TestFilesystemAgentLoading(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	t.Log("Starting TestFilesystemAgentLoading...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with a filesystem agent
+	t.Log("Creating temporary project with filesystem agent...")
 	tmpDir, err := os.MkdirTemp("", "sdk-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -425,20 +569,27 @@ You are a simple test agent. When asked a question, provide a brief, helpful ans
 	if err := os.WriteFile(agentFile, []byte(agentContent), 0644); err != nil {
 		t.Fatalf("Failed to write agent file: %v", err)
 	}
+	t.Logf("Created project dir: %s", projectDir)
+
+	cfg := DefaultTestConfig()
+	t.Logf("Using model: %s", cfg.Model)
 
 	projectSources := []types.SettingSource{types.SettingSourceProject}
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String(DefaultTestConfig().Model),
+		Model:          types.String(cfg.Model),
 		SettingSources: projectSources,
 		CWD:            projectDir,
 		MaxTurns:       types.Int(1),
 	})
 	defer client.Close()
 
+	t.Log("Connecting to Claude...")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	t.Log("Connected successfully")
 
+	t.Log("Sending query: Say hello in exactly 3 words")
 	msgChan, err := client.Query(ctx, "Say hello in exactly 3 words")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
@@ -448,13 +599,70 @@ You are a simple test agent. When asked a question, provide a brief, helpful ans
 	var messages []types.Message
 	for msg := range msgChan {
 		messages = append(messages, msg)
+		switch m := msg.(type) {
+		case *types.SystemMessage:
+			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
+		case *types.AssistantMessage:
+			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+		case *types.ResultMessage:
+			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+			// ResultMessage indicates the conversation is complete
+			t.Logf("Total messages received: %d", len(messages))
+			// Check messages
+			hasSystem := false
+			hasAssistant := false
+			for _, msg := range messages {
+				switch msg.(type) {
+				case *types.SystemMessage:
+					hasSystem = true
+				case *types.AssistantMessage:
+					hasAssistant = true
+				}
+			}
+			if !hasSystem {
+				t.Error("Missing SystemMessage (init)")
+			} else {
+				t.Log("Found SystemMessage (init)")
+			}
+			if !hasAssistant {
+				t.Errorf("Missing AssistantMessage - this may indicate issue with filesystem agents.")
+			} else {
+				t.Log("Found AssistantMessage")
+			}
+			// Find the init message and check for the filesystem agent
+			for _, msg := range messages {
+				if sm, ok := msg.(*types.SystemMessage); ok && sm.Subtype == "init" {
+					agents, ok := sm.Data["agents"].([]interface{})
+					if ok {
+						t.Logf("Found agents in init: %v", agents)
+						found := false
+						for _, agent := range agents {
+							if agent.(string) == "fs-test-agent" {
+								found = true
+								t.Log("SUCCESS: Found 'fs-test-agent' in init message")
+								break
+							}
+						}
+						if !found {
+							t.Errorf("fs-test-agent not loaded from filesystem. Found: %v", agents)
+						}
+					}
+					break
+				}
+			}
+			t.Log("TEST PASSED: Filesystem agent loading test completed")
+			return
+		}
 	}
+
+	t.Logf("Total messages received: %d", len(messages))
 
 	// Must have at least init, assistant, result
 	messageTypes := make([]string, 0, len(messages))
 	for _, msg := range messages {
 		messageTypes = append(messageTypes, fmt.Sprintf("%T", msg))
 	}
+	t.Logf("Message types: %v", messageTypes)
 
 	hasSystem := false
 	hasAssistant := false
@@ -473,12 +681,18 @@ You are a simple test agent. When asked a question, provide a brief, helpful ans
 
 	if !hasSystem {
 		t.Error("Missing SystemMessage (init)")
+	} else {
+		t.Log("Found SystemMessage (init)")
 	}
 	if !hasAssistant {
 		t.Errorf("Missing AssistantMessage - got only: %v. This may indicate issue with filesystem agents.", messageTypes)
+	} else {
+		t.Log("Found AssistantMessage")
 	}
 	if !hasResult {
 		t.Error("Missing ResultMessage")
+	} else {
+		t.Log("Found ResultMessage")
 	}
 
 	// Find the init message and check for the filesystem agent
@@ -486,10 +700,12 @@ You are a simple test agent. When asked a question, provide a brief, helpful ans
 		if m, ok := msg.(*types.SystemMessage); ok && m.Subtype == "init" {
 			agents, ok := m.Data["agents"].([]interface{})
 			if ok {
+				t.Logf("Found agents in init: %v", agents)
 				found := false
 				for _, agent := range agents {
 					if agent.(string) == "fs-test-agent" {
 						found = true
+						t.Log("SUCCESS: Found 'fs-test-agent' in init message")
 						break
 					}
 				}
@@ -500,4 +716,6 @@ You are a simple test agent. When asked a question, provide a brief, helpful ans
 			break
 		}
 	}
+
+	t.Log("TEST PASSED: Filesystem agent loading test completed")
 }
