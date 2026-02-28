@@ -3,7 +3,7 @@
 // These tests require a valid ANTHROPIC_API_KEY environment variable.
 // Run with: go test ./e2e-tests/... -v
 //
-// To skip tests without API key: tests will be skipped automatically.
+// If API key is not set, tests will print a warning and skip.
 package e2e_tests
 
 import (
@@ -14,9 +14,11 @@ import (
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
-// SkipIfNoAPIKey skips the test if ANTHROPIC_API_KEY is not set.
+// SkipIfNoAPIKey prints a warning and skips the test if ANTHROPIC_API_KEY is not set.
 func SkipIfNoAPIKey(t *testing.T) {
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
+		t.Log("⚠️  WARNING: ANTHROPIC_API_KEY not set - test requires API key to run")
+		t.Log("   To run this test, set ANTHROPIC_API_KEY environment variable")
 		t.Skip("Skipping: ANTHROPIC_API_KEY not set")
 	}
 }
