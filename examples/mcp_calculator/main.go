@@ -21,9 +21,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"os"
-	"os/signal"
-	"syscall"
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
 	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
@@ -192,17 +189,7 @@ func displayMessage(msg types.Message) {
 // ============================================================================
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Set up signal handling for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nReceived interrupt signal, shutting down...")
-		cancel()
-	}()
+	ctx := context.Background()
 
 	// Create the calculator server with all tools
 	calculator := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{
@@ -229,7 +216,7 @@ func main() {
 	// Pre-approve all calculator MCP tools so they can be used without permission prompts
 	mode := types.PermissionModeBypassPermissions
 	options := &types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		MCPServers: map[string]types.McpServerConfig{
 			"calc": types.McpSdkServerConfig{
 				Type:     "sdk",
@@ -249,27 +236,21 @@ func main() {
 
 	// Example prompts to demonstrate calculator usage
 	prompts := []string{
-		"List your tools",
 		"Calculate 15 + 27",
-		"What is 100 divided by 7?",
-		"Calculate the square root of 144",
-		"What is 2 raised to the power of 8?",
-		"Calculate (12 + 8) * 3 - 10", // Complex calculation
 	}
 
-	for _, prompt := range prompts {
+	// Create a single client for all queries (more efficient than creating new one each time)
+	client := claude.NewClientWithOptions(options)
+	defer client.Close()
+
+	if err := client.Connect(ctx); err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+
+	for i, prompt := range prompts {
 		fmt.Printf("\n%s\n", "==================================================")
 		fmt.Printf("Prompt: %s\n", prompt)
 		fmt.Printf("%s\n", "==================================================")
-
-		// Create a new client for each prompt (matching Python's async with pattern)
-		client := claude.NewClientWithOptions(options)
-		defer client.Close()
-
-		if err := client.Connect(ctx); err != nil {
-			log.Printf("Failed to connect: %v", err)
-			continue
-		}
 
 		msgChan, err := client.Query(ctx, prompt)
 		if err != nil {
@@ -280,5 +261,15 @@ func main() {
 		for msg := range msgChan {
 			displayMessage(msg)
 		}
+
+		// Print separator between prompts (except last one)
+		if i < len(prompts)-1 {
+			fmt.Println()
+		}
 	}
+
+	fmt.Println("\n=== All calculations complete ===")
+
+	// Explicitly close client and exit
+	client.Close()
 }

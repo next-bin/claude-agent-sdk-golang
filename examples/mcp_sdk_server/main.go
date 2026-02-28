@@ -359,7 +359,7 @@ func basicCalculatorExample(ctx context.Context) {
 	// Configure the SDK client with the calculator server
 	// Using McpSdkServerConfig to wrap our server
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		MCPServers: map[string]types.McpServerConfig{
 			"calc": types.McpSdkServerConfig{
 				Type:     "sdk",
@@ -423,7 +423,7 @@ func multipleServersExample(ctx context.Context) {
 
 	// Configure with multiple servers
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		MCPServers: map[string]types.McpServerConfig{
 			"calc": types.McpSdkServerConfig{
 				Type:     "sdk",

@@ -171,7 +171,7 @@ func pluginWithOptionsExample(ctx context.Context) {
 		},
 
 		// Model selection
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 
 		// Custom system prompt
 		SystemPrompt: "You are a helpful coding assistant with access to custom plugins.",

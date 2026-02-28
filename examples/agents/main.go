@@ -73,7 +73,7 @@ func basicAgentExample(ctx context.Context) {
 	// Configure ClaudeAgentOptions with the agent
 	// The agent name (key in the map) is used to invoke the agent
 	options := &types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		Agents: map[string]types.AgentDefinition{
 			"code-reviewer": codeReviewAgent,
 		},
@@ -125,7 +125,7 @@ func multipleAgentsExample(ctx context.Context) {
 
 	// Configure all agents in ClaudeAgentOptions
 	options := &types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		Agents: map[string]types.AgentDefinition{
 			"analyzer": analyzerAgent,
 			"tester":   testerAgent,
@@ -189,7 +189,7 @@ func customModelAgentExample(ctx context.Context) {
 	}
 
 	options := &types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		Agents: map[string]types.AgentDefinition{
 			"architect":     architectAgent,
 			"formatter":     formatterAgent,
@@ -242,7 +242,7 @@ Provide specific optimization recommendations with expected impact.`,
 	}
 
 	options := &types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		Agents: map[string]types.AgentDefinition{
 			"security-reviewer":   securityAgent,
 			"performance-analyst": performanceAgent,
@@ -317,7 +317,7 @@ func runAgentQueryExample() {
 
 	// Define agents for a code review workflow
 	options := &types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		Agents: map[string]types.AgentDefinition{
 			"code-reviewer": {
 				Description: "Reviews code for quality and issues",

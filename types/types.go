@@ -36,6 +36,24 @@ const (
 	SettingSourceLocal   SettingSource = "local"
 )
 
+// Model constants for Claude models.
+// Short names are resolved by CLI configuration to actual model versions.
+// See: https://platform.claude.com/docs/en/docs/about-claude/models
+const (
+	// Short model names (resolved by CLI to actual versions)
+	ModelOpus   = "opus"   // Most intelligent, for complex reasoning
+	ModelSonnet = "sonnet" // Best speed/intelligence balance
+	ModelHaiku  = "haiku"  // Fastest
+
+	// Concrete model names (latest as of 2026-02)
+	ModelClaudeOpus   = "claude-opus-4-6"
+	ModelClaudeSonnet = "claude-sonnet-4-6"
+	ModelClaudeHaiku  = "claude-haiku-4-5-20251001"
+
+	// Agent model field value
+	ModelInherit = "inherit"
+)
+
 // ============================================================================
 // Agent Definition Types
 // ============================================================================

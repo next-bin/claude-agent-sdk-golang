@@ -324,3 +324,144 @@ func TestSdkMcpToolWithAnnotations(t *testing.T) {
 		t.Error("Expected to receive a result message")
 	}
 }
+
+// TestSdkMcpPermissionEnforcement tests that disallowed_tools prevents SDK MCP tool execution.
+func TestSdkMcpPermissionEnforcement(t *testing.T) {
+	SkipIfNoAPIKey(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	var executions []string
+
+	// Create echo tool
+	echoTool := sdkmcp.Tool("echo", "Echo back the input text", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"text": map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"text"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		executions = append(executions, "echo")
+		text, _ := args["text"].(string)
+		return sdkmcp.TextResult(fmt.Sprintf("Echo: %s", text)), nil
+	})
+
+	// Create greet tool
+	greetTool := sdkmcp.Tool("greet", "Greet a person by name", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"name": map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"name"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		executions = append(executions, "greet")
+		name, _ := args["name"].(string)
+		return sdkmcp.TextResult(fmt.Sprintf("Hello, %s!", name)), nil
+	})
+
+	server := sdkmcp.CreateSdkMcpServer("test", []*sdkmcp.SdkMcpTool{echoTool, greetTool})
+
+	// Block echo tool, allow greet
+	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+		Model: types.String(DefaultTestConfig().Model),
+		MCPServers: map[string]types.McpServerConfig{
+			"test": types.McpSdkServerConfig{
+				Type:     "sdk",
+				Instance: server,
+			},
+		},
+		DisallowedTools: []string{"mcp__test__echo"},
+		AllowedTools:    []string{"mcp__test__greet"},
+		MaxTurns:        types.Int(3),
+	})
+	defer client.Close()
+
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	msgChan, err := client.Query(ctx, "First use the greet tool to greet 'Alice'. After that completes, use the echo tool to echo 'test'. Do these one at a time, not in parallel.")
+	if err != nil {
+		t.Fatalf("Failed to query: %v", err)
+	}
+
+	for range msgChan {
+		// Consume messages
+	}
+
+	t.Logf("Executions: %v", executions)
+
+	// Check actual function executions
+	foundEcho := false
+	foundGreet := false
+	for _, e := range executions {
+		if e == "echo" {
+			foundEcho = true
+		}
+		if e == "greet" {
+			foundGreet = true
+		}
+	}
+
+	if foundEcho {
+		t.Error("Disallowed echo tool was executed")
+	}
+	if !foundGreet {
+		t.Error("Allowed greet tool was not executed")
+	}
+}
+
+// TestSdkMcpWithoutPermissions tests SDK MCP tool behavior without explicit allowed_tools.
+func TestSdkMcpWithoutPermissions(t *testing.T) {
+	SkipIfNoAPIKey(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var executions []string
+
+	// Create echo tool
+	echoTool := sdkmcp.Tool("echo", "Echo back the input text", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"text": map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"text"},
+	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+		executions = append(executions, "echo")
+		text, _ := args["text"].(string)
+		return sdkmcp.TextResult(fmt.Sprintf("Echo: %s", text)), nil
+	})
+
+	server := sdkmcp.CreateSdkMcpServer("noperm", []*sdkmcp.SdkMcpTool{echoTool})
+
+	// No allowed_tools specified
+	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+		Model: types.String(DefaultTestConfig().Model),
+		MCPServers: map[string]types.McpServerConfig{
+			"noperm": types.McpSdkServerConfig{
+				Type:     "sdk",
+				Instance: server,
+			},
+		},
+		MaxTurns: types.Int(2),
+	})
+	defer client.Close()
+
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	msgChan, err := client.Query(ctx, "Call the mcp__noperm__echo tool")
+	if err != nil {
+		t.Fatalf("Failed to query: %v", err)
+	}
+
+	for range msgChan {
+		// Consume messages
+	}
+
+	t.Logf("Executions: %v", executions)
+	// Note: Without allowed_tools, the tool may or may not be called depending on CLI settings
+}

@@ -99,7 +99,7 @@ func main() {
 	// Configure the SDK client with the SDK MCP server
 	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		MCPServers: map[string]types.McpServerConfig{
 			"calc": types.McpSdkServerConfig{
 				Type:     "sdk",

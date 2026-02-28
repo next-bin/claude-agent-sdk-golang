@@ -90,7 +90,7 @@ func TestSetModel(t *testing.T) {
 	}
 
 	// Switch to Haiku model
-	if err := client.SetModel(ctx, "claude-3-5-haiku-20241022"); err != nil {
+	if err := client.SetModel(ctx, types.ModelHaiku); err != nil {
 		t.Logf("SetModel failed: %v (may not be supported)", err)
 	}
 
@@ -240,7 +240,7 @@ func TestMultipleDynamicOperations(t *testing.T) {
 	}
 
 	// Change model
-	_ = client.SetModel(ctx, "claude-3-5-haiku-20241022")
+	_ = client.SetModel(ctx, types.ModelHaiku)
 
 	// Another query
 	msgChan, err = client.Query(ctx, "Say goodbye")

@@ -49,7 +49,7 @@ func Query(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions) (
 // Example:
 //
 //	c := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-//	    Model: types.String("claude-sonnet-4-20250514"),
+//	    Model: types.String(types.ModelSonnet),
 //	})
 //	msgChan, err := claude.QueryWithClient(ctx, c, "Hello!")
 func QueryWithClient(ctx context.Context, c *client.Client, prompt string) (<-chan types.Message, error) {
@@ -72,7 +72,7 @@ func NewClient() *client.Client {
 // Example:
 //
 //	client := claude.NewClientWithOptions(&types.Options{
-//	    Model:       "claude-sonnet-4-20250514",
+//	    Model:       types.ModelSonnet,
 //	    MaxTokens:   4096,
 //	    Temperature: 0.7,
 //	})

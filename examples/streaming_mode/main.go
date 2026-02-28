@@ -321,9 +321,8 @@ func exampleWithOptions(ctx context.Context) error {
 	fmt.Println("=== Custom Options Example ===")
 
 	// Configure options
-	model := "claude-sonnet-4-20250514"
 	options := &types.ClaudeAgentOptions{
-		Model:        &model,
+		Model:        types.String(types.ModelSonnet),
 		AllowedTools: []string{"Read", "Write"},
 		SystemPrompt: strPtr("You are a helpful coding assistant."),
 	}

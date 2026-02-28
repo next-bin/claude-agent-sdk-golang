@@ -53,7 +53,7 @@ func defaultSourcesExample(ctx context.Context) {
 	// 2. Project settings (.claude/settings.json in project root)
 	// 3. Local settings (.claude/settings.local.json)
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 	})
 	defer client.Close()
 
@@ -81,7 +81,7 @@ func userSettingsOnlyExample(ctx context.Context) {
 
 	// Only use user settings - ignore project and local settings
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String("claude-sonnet-4-20250514"),
+		Model:          types.String(types.ModelSonnet),
 		SettingSources: []types.SettingSource{types.SettingSourceUser},
 	})
 	defer client.Close()
@@ -110,7 +110,7 @@ func projectSettingsOnlyExample(ctx context.Context) {
 
 	// Only use project settings - ignore user and local settings
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String("claude-sonnet-4-20250514"),
+		Model:          types.String(types.ModelSonnet),
 		SettingSources: []types.SettingSource{types.SettingSourceProject},
 	})
 	defer client.Close()
@@ -141,7 +141,7 @@ func multipleSourcesExample(ctx context.Context) {
 	// Use user and project settings, but ignore local settings
 	// This is useful for CI/CD or team environments
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		SettingSources: []types.SettingSource{
 			types.SettingSourceUser,
 			types.SettingSourceProject,
@@ -170,7 +170,7 @@ func multipleSourcesExample(ctx context.Context) {
 	fmt.Println()
 
 	client2 := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		SettingSources: []types.SettingSource{
 			types.SettingSourceProject,
 			types.SettingSourceLocal,

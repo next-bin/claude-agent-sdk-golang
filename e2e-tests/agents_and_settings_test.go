@@ -73,16 +73,17 @@ func TestAgentDefinitionWithInit(t *testing.T) {
 }
 
 // TestLargeAgents tests large agent definitions work with the SDK.
+// This tests ~260KB of agent definitions (20 agents x 13KB each).
 func TestLargeAgents(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Generate 5 agents with large prompts
+	// Generate 20 agents with 13KB prompts each = ~260KB total (matching Python SDK)
 	agents := make(map[string]types.AgentDefinition)
-	for i := 0; i < 5; i++ {
-		prompt := fmt.Sprintf("You are test agent #%d. ", i) + strings.Repeat("x", 1024) // 1KB prompt per agent
+	for i := 0; i < 20; i++ {
+		prompt := fmt.Sprintf("You are test agent #%d. ", i) + strings.Repeat("x", 13*1024) // 13KB prompt per agent
 		agents[fmt.Sprintf("large-agent-%d", i)] = types.AgentDefinition{
 			Description: fmt.Sprintf("Large test agent #%d for stress testing", i),
 			Prompt:      prompt,
@@ -139,6 +140,61 @@ func TestLargeAgents(t *testing.T) {
 
 	if !foundInitWithAgents {
 		t.Errorf("Not all agents were registered. Found: %v", foundAgentNames)
+	}
+}
+
+// TestAgentDefinitionWithQueryFunction tests that custom agent definitions
+// work with the query package function.
+func TestAgentDefinitionWithQueryFunction(t *testing.T) {
+	SkipIfNoAPIKey(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Use query package
+	options := &types.ClaudeAgentOptions{
+		Model: types.String(DefaultTestConfig().Model),
+		Agents: map[string]types.AgentDefinition{
+			"test-agent-query": {
+				Description: "A test agent for query function verification",
+				Prompt:      "You are a test agent.",
+			},
+		},
+		MaxTurns: types.Int(1),
+	}
+
+	client := claude.NewClientWithOptions(options)
+	defer client.Close()
+
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	msgChan, err := client.Query(ctx, "What is 2 + 2?")
+	if err != nil {
+		t.Fatalf("Failed to query: %v", err)
+	}
+
+	foundAgent := false
+	for msg := range msgChan {
+		switch m := msg.(type) {
+		case *types.SystemMessage:
+			if m.Subtype == "init" {
+				agents, ok := m.Data["agents"].([]interface{})
+				if ok {
+					for _, agent := range agents {
+						if agent.(string) == "test-agent-query" {
+							foundAgent = true
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if !foundAgent {
+		t.Error("Should have received init message with test-agent-query")
 	}
 }
 

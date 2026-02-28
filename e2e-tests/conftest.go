@@ -37,7 +37,7 @@ type TestConfig struct {
 func DefaultTestConfig() *TestConfig {
 	model := os.Getenv("CLAUDE_TEST_MODEL")
 	if model == "" {
-		model = "claude-sonnet-4-20250514"
+		model = types.ModelSonnet
 	}
 
 	return &TestConfig{

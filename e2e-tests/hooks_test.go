@@ -129,89 +129,64 @@ func TestNotificationHook(t *testing.T) {
 	_ = notificationReceived
 }
 
-// ============================================================================
-// Agent Definition Tests
-// ============================================================================
-
-func TestAgentDefinition(t *testing.T) {
+// TestHookWithPermissionDecisionAndReason tests that hooks with permissionDecision
+// and permissionDecisionReason fields work end-to-end.
+func TestHookWithPermissionDecisionAndReason(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// Define a custom agent
-	agent := types.AgentDefinition{
-		Description: "A simple greeting agent",
-		Prompt:      "You are a friendly greeting agent. Always respond with a cheerful greeting.",
-	}
+	var hookInvocations []string
 
-	mode := types.PermissionModeBypassPermissions
-	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String(DefaultTestConfig().Model),
-		PermissionMode: &mode,
-		MaxTurns:       types.Int(1),
-		Agents: map[string]types.AgentDefinition{
-			"greeter": agent,
+	callback := &testHookCallback{
+		executeFunc: func(input types.HookInput, toolUseID *string, context types.HookContext) (types.HookJSONOutput, error) {
+			// Type assert to PreToolUseHookInput to access tool name
+			if preInput, ok := input.(types.PreToolUseHookInput); ok {
+				t.Logf("Hook called for tool: %s", preInput.ToolName)
+				hookInvocations = append(hookInvocations, preInput.ToolName)
+
+				// Block Bash commands for this test
+				if preInput.ToolName == "Bash" {
+					deny := "deny"
+					reason := "Security policy: Bash blocked"
+					return types.SyncHookJSONOutput{
+						Reason:        types.String("Bash commands are blocked in this test for safety"),
+						SystemMessage: types.String("⚠️ Command blocked by hook"),
+						HookSpecificOutput: types.PreToolUseHookSpecificOutput{
+							HookEventName:            "PreToolUse",
+							PermissionDecision:       &deny,
+							PermissionDecisionReason: &reason,
+						},
+					}, nil
+				}
+
+				allow := "allow"
+				return types.SyncHookJSONOutput{
+					Reason: types.String("Tool approved by security review"),
+					HookSpecificOutput: types.PreToolUseHookSpecificOutput{
+						HookEventName:            "PreToolUse",
+						PermissionDecision:       &allow,
+						PermissionDecisionReason: types.String("Tool passed security checks"),
+					},
+				}, nil
+			}
+			return types.SyncHookJSONOutput{Continue_: types.Bool(true)}, nil
 		},
-	})
-	defer client.Close()
-
-	if err := client.Connect(ctx); err != nil {
-		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say hello")
-	if err != nil {
-		t.Fatalf("Failed to query: %v", err)
-	}
-
-	var foundResult bool
-	for msg := range msgChan {
-		switch m := msg.(type) {
-		case *types.ResultMessage:
-			foundResult = true
-			_ = m
-		}
-	}
-
-	if !foundResult {
-		t.Error("Expected to receive a result message")
-	}
-}
-
-// ============================================================================
-// Structured Output Tests
-// ============================================================================
-
-func TestStructuredOutput(t *testing.T) {
-	SkipIfNoAPIKey(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	// Define JSON schema for structured output
-	outputFormat := map[string]interface{}{
-		"type": "json_schema",
-		"schema": map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"greeting": map[string]interface{}{
-					"type": "string",
-				},
-				"count": map[string]interface{}{
-					"type": "number",
+	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+		Model:        types.String(DefaultTestConfig().Model),
+		MaxTurns:     types.Int(2),
+		AllowedTools: []string{"Bash", "Write"},
+		Hooks: map[types.HookEvent][]types.HookMatcher{
+			types.HookEventPreToolUse: {
+				{
+					Matcher: "Bash",
+					Hooks:   []types.HookCallback{callback},
 				},
 			},
-			"required": []string{"greeting", "count"},
 		},
-	}
-
-	mode := types.PermissionModeBypassPermissions
-	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:          types.String(DefaultTestConfig().Model),
-		PermissionMode: &mode,
-		MaxTurns:       types.Int(1),
-		OutputFormat:   outputFormat,
 	})
 	defer client.Close()
 
@@ -219,41 +194,68 @@ func TestStructuredOutput(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Return a JSON object with a greeting 'Hello' and count 42")
+	msgChan, err := client.Query(ctx, "Run this bash command: echo 'hello'")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	var foundStructuredOutput bool
-	for msg := range msgChan {
-		switch m := msg.(type) {
-		case *types.ResultMessage:
-			if m.StructuredOutput != nil {
-				foundStructuredOutput = true
-			}
-		}
+	for range msgChan {
+		// Consume messages
 	}
 
-	// Note: structured output may not always be present depending on CLI version
-	_ = foundStructuredOutput
+	t.Logf("Hook invocations: %v", hookInvocations)
+	// Verify hook was called
+	found := false
+	for _, inv := range hookInvocations {
+		if inv == "Bash" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Hook should have been invoked for Bash tool, got: %v", hookInvocations)
+	}
 }
 
-// ============================================================================
-// Include Partial Messages Tests
-// ============================================================================
-
-func TestIncludePartialMessages(t *testing.T) {
+// TestHookWithContinueAndStopReason tests that hooks with continue_=False
+// and stopReason fields work end-to-end.
+func TestHookWithContinueAndStopReason(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	mode := types.PermissionModeBypassPermissions
+	var hookInvocations []string
+
+	callback := &testHookCallback{
+		executeFunc: func(input types.HookInput, toolUseID *string, context types.HookContext) (types.HookJSONOutput, error) {
+			// Type assert to PostToolUseHookInput to access tool name
+			if postInput, ok := input.(types.PostToolUseHookInput); ok {
+				hookInvocations = append(hookInvocations, postInput.ToolName)
+			}
+
+			// Test continue_=False and stopReason fields
+			return types.SyncHookJSONOutput{
+				Continue_:     types.Bool(false),
+				StopReason:    types.String("Execution halted by test hook for validation"),
+				Reason:        types.String("Testing continue and stopReason fields"),
+				SystemMessage: types.String("🛑 Test hook stopped execution"),
+			}, nil
+		},
+	}
+
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:                  types.String(DefaultTestConfig().Model),
-		PermissionMode:         &mode,
-		MaxTurns:               types.Int(1),
-		IncludePartialMessages: true,
+		Model:        types.String(DefaultTestConfig().Model),
+		MaxTurns:     types.Int(2),
+		AllowedTools: []string{"Bash"},
+		Hooks: map[types.HookEvent][]types.HookMatcher{
+			types.HookEventPostToolUse: {
+				{
+					Matcher: "Bash",
+					Hooks:   []types.HookCallback{callback},
+				},
+			},
+		},
 	})
 	defer client.Close()
 
@@ -261,20 +263,93 @@ func TestIncludePartialMessages(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Tell me a short story")
+	msgChan, err := client.Query(ctx, "Run: echo 'test message'")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	streamEventCount := 0
-	for msg := range msgChan {
-		switch msg.(type) {
-		case *types.StreamEvent:
-			streamEventCount++
-		}
+	for range msgChan {
+		// Consume messages
 	}
 
-	// With partial messages enabled, we should see some stream events
-	// (Note: this depends on CLI version and response content)
-	_ = streamEventCount
+	t.Logf("Hook invocations: %v", hookInvocations)
+	// Verify hook was called
+	found := false
+	for _, inv := range hookInvocations {
+		if inv == "Bash" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("PostToolUse hook should have been invoked, got: %v", hookInvocations)
+	}
+}
+
+// TestHookWithAdditionalContext tests that hooks with hookSpecificOutput
+// containing additionalContext work end-to-end.
+func TestHookWithAdditionalContext(t *testing.T) {
+	SkipIfNoAPIKey(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var hookInvocations []string
+
+	callback := &testHookCallback{
+		executeFunc: func(input types.HookInput, toolUseID *string, context types.HookContext) (types.HookJSONOutput, error) {
+			hookInvocations = append(hookInvocations, "context_added")
+
+			return types.SyncHookJSONOutput{
+				SystemMessage:  types.String("Additional context provided by hook"),
+				Reason:         types.String("Hook providing monitoring feedback"),
+				SuppressOutput: types.Bool(false),
+				HookSpecificOutput: types.PostToolUseHookSpecificOutput{
+					HookEventName:     "PostToolUse",
+					AdditionalContext: types.String("The command executed successfully with hook monitoring"),
+				},
+			}, nil
+		},
+	}
+
+	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+		Model:        types.String(DefaultTestConfig().Model),
+		MaxTurns:     types.Int(2),
+		AllowedTools: []string{"Bash"},
+		Hooks: map[types.HookEvent][]types.HookMatcher{
+			types.HookEventPostToolUse: {
+				{
+					Matcher: "Bash",
+					Hooks:   []types.HookCallback{callback},
+				},
+			},
+		},
+	})
+	defer client.Close()
+
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	msgChan, err := client.Query(ctx, "Run: echo 'testing hooks'")
+	if err != nil {
+		t.Fatalf("Failed to query: %v", err)
+	}
+
+	for range msgChan {
+		// Consume messages
+	}
+
+	t.Logf("Hook invocations: %v", hookInvocations)
+	// Verify hook was called
+	found := false
+	for _, inv := range hookInvocations {
+		if inv == "context_added" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Hook with hookSpecificOutput should have been invoked")
+	}
 }

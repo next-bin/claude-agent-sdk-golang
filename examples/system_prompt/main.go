@@ -65,7 +65,7 @@ When providing code examples:
 
 	// Create client with string system prompt
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String("claude-sonnet-4-20250514"),
+		Model:        types.String(types.ModelSonnet),
 		SystemPrompt: customPrompt, // SystemPrompt accepts a string directly
 	})
 	defer client.Close()
@@ -90,7 +90,7 @@ func presetExample(ctx context.Context) {
 
 	// Create client with preset system prompt
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String("claude-sonnet-4-20250514"),
+		Model:        types.String(types.ModelSonnet),
 		SystemPrompt: preset, // SystemPrompt accepts SystemPromptPreset struct
 	})
 	defer client.Close()
@@ -124,7 +124,7 @@ ADDITIONAL INSTRUCTIONS:
 
 	// Create client with preset + append
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String("claude-sonnet-4-20250514"),
+		Model:        types.String(types.ModelSonnet),
 		SystemPrompt: presetWithAppend,
 	})
 	defer client.Close()
@@ -158,7 +158,7 @@ SECURITY GUIDELINES:
 	}
 
 	securityClient := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String("claude-sonnet-4-20250514"),
+		Model:        types.String(types.ModelSonnet),
 		SystemPrompt: securityPreset,
 	})
 	defer securityClient.Close()
@@ -182,7 +182,7 @@ Always structure documentation with:
 5. Troubleshooting section`
 
 	docClient := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String("claude-sonnet-4-20250514"),
+		Model:        types.String(types.ModelSonnet),
 		SystemPrompt: docPrompt,
 	})
 	defer docClient.Close()
@@ -208,7 +208,7 @@ TESTING FOCUS:
 	}
 
 	testingClient := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String("claude-sonnet-4-20250514"),
+		Model:        types.String(types.ModelSonnet),
 		SystemPrompt: testingPreset,
 	})
 	defer testingClient.Close()
@@ -268,7 +268,7 @@ Always provide:
 4. Potential improvements`
 
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String("claude-sonnet-4-20250514"),
+		Model: types.String(types.ModelSonnet),
 		SystemPrompt: types.SystemPromptPreset{
 			Type:   "preset",
 			Preset: "claude_code",

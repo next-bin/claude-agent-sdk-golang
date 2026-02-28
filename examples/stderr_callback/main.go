@@ -102,7 +102,7 @@ func basicStderrCallback(ctx context.Context) {
 
 	// Configure the client with stderr callback
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:  types.String("claude-sonnet-4-20250514"),
+		Model:  types.String(types.ModelSonnet),
 		Stderr: logger.Callback(), // Capture stderr output
 	})
 	defer client.Close()
@@ -144,7 +144,7 @@ func fileLoggingExample(ctx context.Context) {
 
 	// Configure the client
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:  types.String("claude-sonnet-4-20250514"),
+		Model:  types.String(types.ModelSonnet),
 		Stderr: fileCallback,
 	})
 	defer client.Close()
@@ -194,7 +194,7 @@ func filteredStderrExample(ctx context.Context) {
 
 	// Configure the client
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:  types.String("claude-sonnet-4-20250514"),
+		Model:  types.String(types.ModelSonnet),
 		Stderr: filteredCallback,
 	})
 	defer client.Close()
@@ -234,7 +234,7 @@ func realtimeStderrExample(ctx context.Context) {
 
 	// Configure the client
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:  types.String("claude-sonnet-4-20250514"),
+		Model:  types.String(types.ModelSonnet),
 		Stderr: realtimeCallback,
 	})
 	defer client.Close()
@@ -317,7 +317,7 @@ func combinedStderrHandler(ctx context.Context) {
 
 	// Configure the client
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:  types.String("claude-sonnet-4-20250514"),
+		Model:  types.String(types.ModelSonnet),
 		Stderr: combinedCallback,
 	})
 	defer client.Close()

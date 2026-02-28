@@ -61,7 +61,7 @@ func Query(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions) (
 // Example:
 //
 //	c := client.NewWithOptions(&types.ClaudeAgentOptions{
-//	    Model: types.String("claude-sonnet-4-20250514"),
+//	    Model: types.String(types.ModelSonnet),
 //	})
 //	msgChan, err := query.QueryWithClient(ctx, c, "Hello!")
 func QueryWithClient(ctx context.Context, c *client.Client, prompt string) (<-chan types.Message, error) {

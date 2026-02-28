@@ -573,9 +573,14 @@ func (c *Client) SetPermissionMode(ctx context.Context, mode string) error {
 // It only works in streaming mode.
 //
 // The model parameter specifies the model to use. Examples include:
-//   - "claude-sonnet-4-5"
-//   - "claude-opus-4-1-20250805"
-//   - "claude-opus-4-20250514"
+//   - "claude-opus-4-6" (latest flagship, most intelligent)
+//   - "claude-sonnet-4-6" (best balance of speed and intelligence)
+//   - "claude-haiku-4-5-20251001" (fastest)
+//
+// You can also use the model constants defined in the types package:
+//   - types.ModelClaudeOpus46
+//   - types.ModelClaudeSonnet46
+//   - types.ModelClaudeHaiku45
 //
 // SetModel returns an error if the client is not connected.
 func (c *Client) SetModel(ctx context.Context, model string) error {
