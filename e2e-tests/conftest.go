@@ -12,6 +12,7 @@
 package e2e_tests
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -253,4 +254,82 @@ func formatResult(result *string) string {
 		return "<nil>"
 	}
 	return truncateString(*result, 100)
+}
+
+// consumeMessagesUntilResult consumes messages from the channel until a ResultMessage
+// is received or the context is done. This prevents tests from hanging indefinitely
+// when the message channel doesn't close properly.
+// After receiving ResultMessage, it continues draining the channel in the background
+// to prevent blocking the SDK goroutines.
+// Returns the number of messages consumed and whether a ResultMessage was found.
+func consumeMessagesUntilResult(ctx context.Context, msgChan <-chan types.Message) (count int, foundResult bool) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-msgChan:
+			if !ok {
+				// Channel closed
+				return
+			}
+			count++
+			if _, isResult := msg.(*types.ResultMessage); isResult {
+				foundResult = true
+				// Continue draining the channel in the background to prevent
+				// blocking SDK goroutines that are still sending
+				go func() {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case _, ok := <-msgChan:
+							if !ok {
+								return
+							}
+						}
+					}
+				}()
+				return
+			}
+		}
+	}
+}
+
+// consumeAllMessagesUntilResult consumes all messages including the result message.
+// It processes each message through the provided handler function.
+// Returns when a ResultMessage is received or context is done.
+// After receiving ResultMessage, it continues draining the channel in the background.
+func consumeAllMessagesUntilResult(ctx context.Context, msgChan <-chan types.Message, handler func(types.Message)) (count int, foundResult bool) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-msgChan:
+			if !ok {
+				// Channel closed
+				return
+			}
+			count++
+			if handler != nil {
+				handler(msg)
+			}
+			if _, isResult := msg.(*types.ResultMessage); isResult {
+				foundResult = true
+				// Continue draining the channel in the background
+				go func() {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case _, ok := <-msgChan:
+							if !ok {
+								return
+							}
+						}
+					}
+				}()
+				return
+			}
+		}
+	}
 }

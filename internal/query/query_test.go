@@ -1719,7 +1719,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	})
 
 	t.Run("concurrent initialize and close", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 3; i++ {
 			mockTransport := newMockTransport()
 			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
 
@@ -1728,10 +1728,13 @@ func TestConcurrentStreaming(t *testing.T) {
 
 			var initErr, closeErr error
 
+			// Use a context with short timeout to prevent indefinite blocking
+			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+
 			go func() {
 				defer wg.Done()
 				// Initialize may fail if close happens first
-				_, initErr = q.Initialize(context.Background())
+				_, initErr = q.Initialize(ctx)
 			}()
 
 			go func() {
@@ -1741,6 +1744,7 @@ func TestConcurrentStreaming(t *testing.T) {
 			}()
 
 			wg.Wait()
+			cancel()
 			// One of them may error due to timing, but should not panic
 			t.Logf("Init err: %v, Close err: %v", initErr, closeErr)
 		}

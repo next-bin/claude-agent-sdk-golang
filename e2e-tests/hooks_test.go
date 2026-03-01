@@ -73,9 +73,7 @@ func TestPreToolUseHook(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	// Note: Hook may or may not be called depending on whether Bash tool is actually used
 	_ = hookCalled
@@ -122,9 +120,7 @@ func TestNotificationHook(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	_ = notificationReceived
 }
@@ -175,10 +171,12 @@ func TestHookWithPermissionDecisionAndReason(t *testing.T) {
 		},
 	}
 
+	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String(DefaultTestConfig().Model),
-		MaxTurns:     types.Int(2),
-		AllowedTools: []string{"Bash", "Write"},
+		Model:          types.String(DefaultTestConfig().Model),
+		PermissionMode: &mode,
+		MaxTurns:       types.Int(2),
+		AllowedTools:   []string{"Bash", "Write"},
 		Hooks: map[types.HookEvent][]types.HookMatcher{
 			types.HookEventPreToolUse: {
 				{
@@ -199,9 +197,7 @@ func TestHookWithPermissionDecisionAndReason(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	t.Logf("Hook invocations: %v", hookInvocations)
 	// Verify hook was called
@@ -244,10 +240,12 @@ func TestHookWithContinueAndStopReason(t *testing.T) {
 		},
 	}
 
+	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String(DefaultTestConfig().Model),
-		MaxTurns:     types.Int(2),
-		AllowedTools: []string{"Bash"},
+		Model:          types.String(DefaultTestConfig().Model),
+		PermissionMode: &mode,
+		MaxTurns:       types.Int(2),
+		AllowedTools:   []string{"Bash"},
 		Hooks: map[types.HookEvent][]types.HookMatcher{
 			types.HookEventPostToolUse: {
 				{
@@ -268,9 +266,7 @@ func TestHookWithContinueAndStopReason(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	t.Logf("Hook invocations: %v", hookInvocations)
 	// Verify hook was called
@@ -312,10 +308,12 @@ func TestHookWithAdditionalContext(t *testing.T) {
 		},
 	}
 
+	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:        types.String(DefaultTestConfig().Model),
-		MaxTurns:     types.Int(2),
-		AllowedTools: []string{"Bash"},
+		Model:          types.String(DefaultTestConfig().Model),
+		PermissionMode: &mode,
+		MaxTurns:       types.Int(2),
+		AllowedTools:   []string{"Bash"},
 		Hooks: map[types.HookEvent][]types.HookMatcher{
 			types.HookEventPostToolUse: {
 				{
@@ -336,9 +334,7 @@ func TestHookWithAdditionalContext(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	t.Logf("Hook invocations: %v", hookInvocations)
 	// Verify hook was called

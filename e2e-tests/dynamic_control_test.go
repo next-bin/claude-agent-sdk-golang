@@ -21,7 +21,8 @@ func TestSetPermissionMode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	mode := types.PermissionModeDefault
+	// Use BypassPermissions to avoid interactive permission prompts in tests
+	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		Model:          types.String(DefaultTestConfig().Model),
 		PermissionMode: &mode,
@@ -43,9 +44,7 @@ func TestSetPermissionMode(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	// Change back to default
 	if err := client.SetPermissionMode(ctx, "default"); err != nil {
@@ -58,9 +57,7 @@ func TestSetPermissionMode(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 }
 
 // TestSetModel tests that model can be changed dynamically during a session.
@@ -70,8 +67,10 @@ func TestSetModel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String(DefaultTestConfig().Model),
+		Model:          types.String(DefaultTestConfig().Model),
+		PermissionMode: &mode,
 	})
 	defer client.Close()
 
@@ -85,9 +84,7 @@ func TestSetModel(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	// Switch to Haiku model
 	if err := client.SetModel(ctx, types.ModelHaiku); err != nil {
@@ -99,9 +96,7 @@ func TestSetModel(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	// Switch back to default (empty string means default)
 	if err := client.SetModel(ctx, ""); err != nil {
@@ -113,9 +108,7 @@ func TestSetModel(t *testing.T) {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	for range msgChan {
-		// Consume messages
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 }
 
 // TestInterrupt tests that interrupt can be sent during a session.
@@ -146,17 +139,31 @@ func TestInterrupt(t *testing.T) {
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		if err := client.Interrupt(ctx); err != nil {
-			t.Logf("Interrupt resulted in: %v", err)
+			t.Logf("Interrupt resulted in: %v (may not be supported)", err)
 		}
 	}()
 
-	// Consume any remaining messages
+	// Consume messages until context is done or channel closes
 	messageCount := 0
-	for range msgChan {
-		messageCount++
+	for {
+		select {
+		case <-ctx.Done():
+			t.Logf("Context done after receiving %d messages", messageCount)
+			return
+		case msg, ok := <-msgChan:
+			if !ok {
+				// Channel closed
+				t.Logf("Received %d messages before/after interrupt", messageCount)
+				return
+			}
+			messageCount++
+			// Check for result message - indicates query completed
+			if _, isResult := msg.(*types.ResultMessage); isResult {
+				t.Logf("Received result after %d messages", messageCount)
+				return
+			}
+		}
 	}
-
-	t.Logf("Received %d messages before/after interrupt", messageCount)
 }
 
 // TestGetMCPStatus tests that MCP server status can be retrieved.
@@ -236,8 +243,7 @@ func TestMultipleDynamicOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	for range msgChan {
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	// Change model
 	_ = client.SetModel(ctx, types.ModelHaiku)
@@ -247,8 +253,7 @@ func TestMultipleDynamicOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	for range msgChan {
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 
 	// Change permission mode
 	_ = client.SetPermissionMode(ctx, "default")
@@ -258,6 +263,5 @@ func TestMultipleDynamicOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	for range msgChan {
-	}
+	consumeMessagesUntilResult(ctx, msgChan)
 }

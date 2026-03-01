@@ -43,7 +43,7 @@ func TestIncludePartialMessagesStreamEvents(t *testing.T) {
 	var streamEvents []*types.StreamEvent
 	var assistantMessages []*types.AssistantMessage
 
-	for msg := range msgChan {
+	_, _ = consumeAllMessagesUntilResult(ctx, msgChan, func(msg types.Message) {
 		collectedMessages = append(collectedMessages, msg)
 
 		switch m := msg.(type) {
@@ -52,7 +52,7 @@ func TestIncludePartialMessagesStreamEvents(t *testing.T) {
 		case *types.AssistantMessage:
 			assistantMessages = append(assistantMessages, m)
 		}
-	}
+	})
 
 	// Should have SystemMessage(init) at the start
 	if len(collectedMessages) == 0 {
@@ -137,7 +137,7 @@ func TestPartialMessagesDisabledByDefault(t *testing.T) {
 	var streamEvents []*types.StreamEvent
 	var hasSystem, hasAssistant, hasResult bool
 
-	for msg := range msgChan {
+	_, _ = consumeAllMessagesUntilResult(ctx, msgChan, func(msg types.Message) {
 		switch m := msg.(type) {
 		case *types.StreamEvent:
 			streamEvents = append(streamEvents, m)
@@ -148,7 +148,7 @@ func TestPartialMessagesDisabledByDefault(t *testing.T) {
 		case *types.ResultMessage:
 			hasResult = true
 		}
-	}
+	})
 
 	// Should NOT have any StreamEvent messages
 	if len(streamEvents) > 0 {
@@ -194,7 +194,7 @@ func TestThinkingDeltas(t *testing.T) {
 
 	var thinkingDeltas []string
 
-	for msg := range msgChan {
+	_, _ = consumeAllMessagesUntilResult(ctx, msgChan, func(msg types.Message) {
 		if event, ok := msg.(*types.StreamEvent); ok {
 			if eventType, ok := event.Event["type"].(string); ok && eventType == "content_block_delta" {
 				if delta, ok := event.Event["delta"].(map[string]interface{}); ok {
@@ -206,7 +206,7 @@ func TestThinkingDeltas(t *testing.T) {
 				}
 			}
 		}
-	}
+	})
 
 	// Should have received thinking deltas (may or may not have depending on model response)
 	t.Logf("Received %d thinking deltas", len(thinkingDeltas))
