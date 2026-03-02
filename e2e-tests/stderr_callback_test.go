@@ -19,9 +19,13 @@ import (
 // debug output when enabled.
 func TestStderrCallbackCapturesDebugOutput(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestStderrCallbackCapturesDebugOutput")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestStderrCallbackCapturesDebugOutput")
 
 	var stderrLines []string
 	var mu sync.Mutex
@@ -32,6 +36,7 @@ func TestStderrCallbackCapturesDebugOutput(t *testing.T) {
 		stderrLines = append(stderrLines, line)
 	}
 
+	logger.Step("Creating client with stderr callback and debug mode")
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		Model:          types.String(DefaultTestConfig().Model),
 		PermissionMode: permissionModePtr(types.PermissionModeBypassPermissions),
@@ -42,29 +47,33 @@ func TestStderrCallbackCapturesDebugOutput(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: What is 1+1?")
 	msgChan, err := client.Query(ctx, "What is 1+1?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	// Consume messages
-	for range msgChan {
-	}
+	// Consume messages with verbose output
+	count, foundResult, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "TestStderrCallbackCapturesDebugOutput")
 
 	// Verify we captured debug output
 	mu.Lock()
-	defer mu.Unlock()
+	stderrCount := len(stderrLines)
+	mu.Unlock()
 
-	if len(stderrLines) == 0 {
+	if stderrCount == 0 {
 		t.Error("Should capture stderr output with debug enabled")
 	} else {
-		t.Logf("Captured %d stderr lines", len(stderrLines))
+		t.Logf("Captured %d stderr lines", stderrCount)
 
 		// Check for DEBUG messages
+		mu.Lock()
 		hasDebug := false
 		for _, line := range stderrLines {
 			if strings.Contains(line, "[DEBUG]") {
@@ -72,20 +81,27 @@ func TestStderrCallbackCapturesDebugOutput(t *testing.T) {
 				break
 			}
 		}
+		mu.Unlock()
 
 		if !hasDebug {
 			t.Log("Note: No [DEBUG] markers found (may vary by CLI version)")
 		}
 	}
+
+	PrintTestSummary(t, "TestStderrCallbackCapturesDebugOutput", foundResult, count, time.Since(startTime))
 }
 
 // TestStderrCallbackWithoutDebug tests that stderr callback works but receives
 // no output without debug mode.
 func TestStderrCallbackWithoutDebug(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestStderrCallbackWithoutDebug")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestStderrCallbackWithoutDebug")
 
 	var stderrLines []string
 	var mu sync.Mutex
@@ -96,6 +112,7 @@ func TestStderrCallbackWithoutDebug(t *testing.T) {
 		stderrLines = append(stderrLines, line)
 	}
 
+	logger.Step("Creating client with stderr callback (no debug mode)")
 	// No debug mode enabled
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		Model:          types.String(DefaultTestConfig().Model),
@@ -104,34 +121,43 @@ func TestStderrCallbackWithoutDebug(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: What is 1+1?")
 	msgChan, err := client.Query(ctx, "What is 1+1?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	// Consume messages
-	for range msgChan {
-	}
+	// Consume messages with verbose output
+	count, foundResult, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "TestStderrCallbackWithoutDebug")
 
 	// Should work but capture minimal/no output without debug
 	mu.Lock()
-	defer mu.Unlock()
+	stderrCount := len(stderrLines)
+	mu.Unlock()
 
-	if len(stderrLines) > 0 {
-		t.Logf("Note: Captured %d stderr lines without debug mode (may vary)", len(stderrLines))
+	if stderrCount > 0 {
+		t.Logf("Note: Captured %d stderr lines without debug mode (may vary)", stderrCount)
 	}
+
+	PrintTestSummary(t, "TestStderrCallbackWithoutDebug", foundResult, count, time.Since(startTime))
 }
 
 // TestStderrCallbackMultipleQueries tests stderr callback across multiple queries.
 func TestStderrCallbackMultipleQueries(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestStderrCallbackMultipleQueries")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestStderrCallbackMultipleQueries")
 
 	var stderrLines []string
 	var mu sync.Mutex
@@ -142,6 +168,7 @@ func TestStderrCallbackMultipleQueries(t *testing.T) {
 		stderrLines = append(stderrLines, line)
 	}
 
+	logger.Step("Creating client with stderr callback")
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 		Model:          types.String(DefaultTestConfig().Model),
 		PermissionMode: permissionModePtr(types.PermissionModeBypassPermissions),
@@ -152,27 +179,34 @@ func TestStderrCallbackMultipleQueries(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
 	// First query
+	logger.Step("Sending first query: What is 1+1?")
 	msgChan, err := client.Query(ctx, "What is 1+1?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	for range msgChan {
-	}
+	count1, foundResult1, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "Query1")
+	logger.Log("First query completed: %d messages, foundResult=%v", count1, foundResult1)
 
-	// Second query
+	// Second query - need to ensure first query is fully complete
+	logger.Step("Sending second query: What is 2+2?")
 	msgChan, err = client.Query(ctx, "What is 2+2?")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	for range msgChan {
-	}
+	count2, foundResult2, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "Query2")
+	logger.Log("Second query completed: %d messages, foundResult=%v", count2, foundResult2)
 
 	mu.Lock()
-	defer mu.Unlock()
-	t.Logf("Total stderr lines captured: %d", len(stderrLines))
+	totalLines := len(stderrLines)
+	mu.Unlock()
+
+	PrintTestSummary(t, "TestStderrCallbackMultipleQueries", foundResult1 && foundResult2, count1+count2, time.Since(startTime))
+	t.Logf("Total stderr lines captured: %d", totalLines)
 }

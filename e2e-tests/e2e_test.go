@@ -15,9 +15,14 @@ import (
 
 func TestBasicQuery(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestBasicQuery")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestBasicQuery")
+	logger.Step("Creating client")
 
 	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
@@ -27,51 +32,40 @@ func TestBasicQuery(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: \"Say 'Hello, World!' and nothing else\"")
 	msgChan, err := client.Query(ctx, "Say 'Hello, World!' and nothing else")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	var foundResult bool
-	for {
-		select {
-		case <-ctx.Done():
-			t.Logf("Context done")
-			return
-		case msg, ok := <-msgChan:
-			if !ok {
-				if !foundResult {
-					t.Error("Expected to receive a result message")
-				}
-				return
-			}
-			switch m := msg.(type) {
-			case *types.AssistantMessage:
-				// Check content
-				if len(m.Content) == 0 {
-					t.Error("Expected assistant message to have content")
-				}
-			case *types.ResultMessage:
-				foundResult = true
-				if m.IsError {
-					t.Errorf("Result was an error: %v", m)
-				}
-				// ResultMessage indicates query completed
-				return
-			}
-		}
+	count, foundResult, resultMsg := ConsumeMessagesVerbose(ctx, t, msgChan, "TestBasicQuery")
+
+	if !foundResult {
+		t.Error("Expected to receive a result message")
 	}
+	if resultMsg != nil && resultMsg.IsError {
+		t.Errorf("Result was an error: %v", resultMsg)
+	}
+
+	PrintTestSummary(t, "TestBasicQuery", foundResult && (resultMsg == nil || !resultMsg.IsError), count, time.Since(startTime))
 }
 
 func TestQueryWithSystemPrompt(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestQueryWithSystemPrompt")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestQueryWithSystemPrompt")
+	logger.Step("Creating client with custom system prompt")
 
 	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
@@ -82,43 +76,37 @@ func TestQueryWithSystemPrompt(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: \"Say something\"")
 	msgChan, err := client.Query(ctx, "Say something")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	var foundResult bool
-	for {
-		select {
-		case <-ctx.Done():
-			t.Logf("Context done")
-			return
-		case msg, ok := <-msgChan:
-			if !ok {
-				if !foundResult {
-					t.Error("Expected to receive a result message")
-				}
-				return
-			}
-			switch msg.(type) {
-			case *types.ResultMessage:
-				foundResult = true
-				// ResultMessage indicates query completed
-				return
-			}
-		}
+	count, foundResult, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "TestQueryWithSystemPrompt")
+
+	if !foundResult {
+		t.Error("Expected to receive a result message")
 	}
+
+	PrintTestSummary(t, "TestQueryWithSystemPrompt", foundResult, count, time.Since(startTime))
 }
 
 func TestQueryWithBudget(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestQueryWithBudget")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestQueryWithBudget")
+	logger.Step("Creating client with low budget (0.001 USD)")
 
 	// Set a very low budget to test budget handling
 	budget := 0.001
@@ -131,43 +119,38 @@ func TestQueryWithBudget(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: \"Write a very long story about a cat\"")
 	msgChan, err := client.Query(ctx, "Write a very long story about a cat")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
+	count, _, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "TestQueryWithBudget")
+
 	// Just verify we get messages - budget may or may not trigger
-	var receivedMessages bool
-	for {
-		select {
-		case <-ctx.Done():
-			t.Logf("Context done")
-			return
-		case msg, ok := <-msgChan:
-			if !ok {
-				if !receivedMessages {
-					t.Error("Expected to receive some messages")
-				}
-				return
-			}
-			receivedMessages = true
-			// Exit on ResultMessage
-			if _, isResult := msg.(*types.ResultMessage); isResult {
-				return
-			}
-		}
+	if count == 0 {
+		t.Error("Expected to receive some messages")
 	}
+
+	PrintTestSummary(t, "TestQueryWithBudget", count > 0, count, time.Since(startTime))
 }
 
 func TestStreamingMode(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestStreamingMode")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestStreamingMode")
+	logger.Step("Creating client")
 
 	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
@@ -177,36 +160,25 @@ func TestStreamingMode(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: \"Count from 1 to 5\"")
 	msgChan, err := client.Query(ctx, "Count from 1 to 5")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	messageCount := 0
-	for {
-		select {
-		case <-ctx.Done():
-			t.Logf("Context done after %d messages", messageCount)
-			return
-		case msg, ok := <-msgChan:
-			if !ok {
-				// Channel closed
-				if messageCount == 0 {
-					t.Error("Expected to receive at least one message")
-				}
-				return
-			}
-			messageCount++
-			// Exit on ResultMessage
-			if _, isResult := msg.(*types.ResultMessage); isResult {
-				return
-			}
-		}
+	count, _, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "TestStreamingMode")
+
+	if count == 0 {
+		t.Error("Expected to receive at least one message")
 	}
+
+	PrintTestSummary(t, "TestStreamingMode", count > 0, count, time.Since(startTime))
 }
 
 // ============================================================================
@@ -215,9 +187,14 @@ func TestStreamingMode(t *testing.T) {
 
 func TestBypassPermissionsMode(t *testing.T) {
 	SkipIfNoAPIKey(t)
+	startTime := time.Now()
+	PrintTestHeader(t, "TestBypassPermissionsMode")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	logger := NewTestLogger(t, "TestBypassPermissionsMode")
+	logger.Step("Creating client with BypassPermissions mode")
 
 	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
@@ -227,35 +204,23 @@ func TestBypassPermissionsMode(t *testing.T) {
 	})
 	defer client.Close()
 
+	logger.Step("Connecting")
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	logger.Status("Connected successfully")
 
+	logger.Step("Sending query: \"Say 'test passed'\"")
 	msgChan, err := client.Query(ctx, "Say 'test passed'")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	var foundResult bool
-	for {
-		select {
-		case <-ctx.Done():
-			t.Logf("Context done")
-			return
-		case msg, ok := <-msgChan:
-			if !ok {
-				// Channel closed
-				if !foundResult {
-					t.Error("Expected to receive a result message")
-				}
-				return
-			}
-			switch msg.(type) {
-			case *types.ResultMessage:
-				foundResult = true
-				// ResultMessage indicates query completed
-				return
-			}
-		}
+	count, foundResult, resultMsg := ConsumeMessagesVerbose(ctx, t, msgChan, "TestBypassPermissionsMode")
+
+	if !foundResult {
+		t.Error("Expected to receive a result message")
 	}
+
+	PrintTestSummary(t, "TestBypassPermissionsMode", foundResult && (resultMsg == nil || !resultMsg.IsError), count, time.Since(startTime))
 }

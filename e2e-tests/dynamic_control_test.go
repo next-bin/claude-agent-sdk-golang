@@ -239,29 +239,38 @@ func TestMultipleDynamicOperations(t *testing.T) {
 	}
 
 	// Initial query
+	t.Log("Query 1: Say hello")
 	msgChan, err := client.Query(ctx, "Say hello")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	consumeMessagesUntilResult(ctx, msgChan)
+	count, found := consumeMessagesUntilResult(ctx, msgChan)
+	t.Logf("Query 1 completed: count=%d, foundResult=%v", count, found)
 
 	// Change model
+	t.Log("Changing model to haiku")
 	_ = client.SetModel(ctx, types.ModelHaiku)
 
 	// Another query
+	t.Log("Query 2: Say goodbye")
 	msgChan, err = client.Query(ctx, "Say goodbye")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	consumeMessagesUntilResult(ctx, msgChan)
+	count, found = consumeMessagesUntilResult(ctx, msgChan)
+	t.Logf("Query 2 completed: count=%d, foundResult=%v", count, found)
 
 	// Change permission mode
+	t.Log("Changing permission mode to default")
 	_ = client.SetPermissionMode(ctx, "default")
 
 	// Final query
+	t.Log("Query 3: Say done")
 	msgChan, err = client.Query(ctx, "Say done")
 	if err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	consumeMessagesUntilResult(ctx, msgChan)
+	count, found = consumeMessagesUntilResult(ctx, msgChan)
+	t.Logf("Query 3 completed: count=%d, foundResult=%v", count, found)
+	t.Log("TEST PASSED: All queries completed")
 }

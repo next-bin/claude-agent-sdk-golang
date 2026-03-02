@@ -5,139 +5,22 @@
 //
 // To skip tests without API key: tests will be skipped automatically.
 // Supported configurations (in priority order):
-//   1. ANTHROPIC_API_KEY (direct API key)
-//   2. CLAUDE_CODE_USE_FOUNDRY=1 + ANTHROPIC_FOUNDRY_API_KEY (Foundry)
-//   3. ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
-//   4. ~/.claude/settings.json with ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
+//  1. ANTHROPIC_API_KEY (direct API key)
+//  2. CLAUDE_CODE_USE_FOUNDRY=1 + ANTHROPIC_FOUNDRY_API_KEY (Foundry)
+//  3. ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
+//  4. ~/.claude/settings.json with ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
 package e2e_tests
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"os"
-	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/unitsvc/claude-agent-sdk-golang/config"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
-
-// ClaudeSettings represents the structure of ~/.claude/settings.json
-type ClaudeSettings struct {
-	Env map[string]string `json:"env"`
-}
-
-// loadClaudeSettings loads settings from ~/.claude/settings.json
-func loadClaudeSettings() *ClaudeSettings {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-
-	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		return nil
-	}
-
-	var settings ClaudeSettings
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return nil
-	}
-
-	return &settings
-}
-
-// FoundryConfig holds Foundry-style configuration
-type FoundryConfig struct {
-	APIKey  string
-	BaseURL string
-	Found   bool
-}
-
-// foundryOnce ensures Foundry config is only detected once
-var foundryOnce sync.Once
-
-// foundryConfig caches the detected Foundry configuration
-var foundryConfig *FoundryConfig
-
-// detectFoundryConfig detects and returns Foundry configuration from multiple sources.
-// Priority:
-// 1. Environment variable ANTHROPIC_API_KEY (not Foundry, just direct key)
-// 2. CLAUDE_CODE_USE_FOUNDRY=1 + ANTHROPIC_FOUNDRY_API_KEY
-// 3. ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
-// 4. ~/.claude/settings.json ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
-func detectFoundryConfig() *FoundryConfig {
-	foundryOnce.Do(func() {
-		cfg := &FoundryConfig{}
-
-		// Priority 1: Direct API key (not Foundry)
-		if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
-			cfg.APIKey = apiKey
-			cfg.BaseURL = os.Getenv("ANTHROPIC_BASE_URL")
-			cfg.Found = true
-			foundryConfig = cfg
-			return
-		}
-
-		// Priority 2: Explicit Foundry configuration
-		if os.Getenv("CLAUDE_CODE_USE_FOUNDRY") == "1" {
-			if apiKey := os.Getenv("ANTHROPIC_FOUNDRY_API_KEY"); apiKey != "" {
-				cfg.APIKey = apiKey
-				cfg.BaseURL = os.Getenv("ANTHROPIC_FOUNDRY_BASE_URL")
-				cfg.Found = true
-				foundryConfig = cfg
-				return
-			}
-		}
-
-		// Priority 3: ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (auto-convert to Foundry)
-		if authToken := os.Getenv("ANTHROPIC_AUTH_TOKEN"); authToken != "" {
-			baseURL := os.Getenv("ANTHROPIC_BASE_URL")
-			if baseURL != "" {
-				cfg.APIKey = authToken
-				cfg.BaseURL = baseURL
-				cfg.Found = true
-				// Inject into environment as Foundry config
-				os.Setenv("CLAUDE_CODE_USE_FOUNDRY", "1")
-				os.Setenv("ANTHROPIC_FOUNDRY_API_KEY", authToken)
-				os.Setenv("ANTHROPIC_FOUNDRY_BASE_URL", baseURL)
-				foundryConfig = cfg
-				return
-			}
-		}
-
-		// Priority 4: ~/.claude/settings.json (auto-convert to Foundry)
-		settings := loadClaudeSettings()
-		if settings != nil && settings.Env != nil {
-			authToken := settings.Env["ANTHROPIC_AUTH_TOKEN"]
-			baseURL := settings.Env["ANTHROPIC_BASE_URL"]
-			if authToken != "" && baseURL != "" {
-				cfg.APIKey = authToken
-				cfg.BaseURL = baseURL
-				cfg.Found = true
-				// Inject into environment as Foundry config
-				os.Setenv("CLAUDE_CODE_USE_FOUNDRY", "1")
-				os.Setenv("ANTHROPIC_FOUNDRY_API_KEY", authToken)
-				os.Setenv("ANTHROPIC_FOUNDRY_BASE_URL", baseURL)
-				foundryConfig = cfg
-				return
-			}
-			// Fallback: only ANTHROPIC_AUTH_TOKEN without base URL
-			if authToken != "" {
-				cfg.APIKey = authToken
-				cfg.Found = true
-				foundryConfig = cfg
-				return
-			}
-		}
-
-		foundryConfig = cfg
-	})
-
-	return foundryConfig
-}
 
 // SkipIfNoAPIKey skips the test if no API key is configured.
 func SkipIfNoAPIKey(t *testing.T) {
@@ -161,15 +44,30 @@ type TestConfig struct {
 }
 
 // DefaultTestConfig returns the default test configuration.
+// It detects API key from multiple sources and configures the environment
+// for CLI subprocess to work correctly with Foundry mode if needed.
 func DefaultTestConfig() *TestConfig {
-	// Detect Foundry configuration (auto-injects env vars)
-	foundryCfg := detectFoundryConfig()
+	// Detect configuration from multiple sources
+	cfg := config.Detect()
+
+	// For Foundry mode (ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL), we need to
+	// inject environment variables so the CLI subprocess can recognize them.
+	// This is done explicitly here, not via init(), for clarity.
+	if cfg.Found && cfg.BaseURL != "" {
+		// Check if we need to inject Foundry environment variables
+		// (when using ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL pattern)
+		if os.Getenv("ANTHROPIC_API_KEY") == "" && os.Getenv("CLAUDE_CODE_USE_FOUNDRY") != "1" {
+			os.Setenv("CLAUDE_CODE_USE_FOUNDRY", "1")
+			os.Setenv("ANTHROPIC_FOUNDRY_API_KEY", cfg.APIKey)
+			os.Setenv("ANTHROPIC_FOUNDRY_BASE_URL", cfg.BaseURL)
+		}
+	}
 
 	// Get model from env or settings
 	model := os.Getenv("CLAUDE_TEST_MODEL")
 	if model == "" {
-		settings := loadClaudeSettings()
-		if settings != nil && settings.Env != nil {
+		settings, err := config.LoadSettings()
+		if err == nil && settings.Env != nil {
 			if m := settings.Env["ANTHROPIC_MODEL"]; m != "" {
 				model = m
 			}
@@ -180,8 +78,8 @@ func DefaultTestConfig() *TestConfig {
 	}
 
 	return &TestConfig{
-		APIKey:   foundryCfg.APIKey,
-		BaseURL:  foundryCfg.BaseURL,
+		APIKey:   cfg.APIKey,
+		BaseURL:  cfg.BaseURL,
 		Model:    model,
 		MaxTurns: 3,
 		Timeout:  60 * time.Second,
@@ -190,8 +88,7 @@ func DefaultTestConfig() *TestConfig {
 
 // HasAPIKey returns true if an API key is available.
 func HasAPIKey() bool {
-	cfg := detectFoundryConfig()
-	return cfg.Found && cfg.APIKey != ""
+	return config.HasAPIKey()
 }
 
 // Helper functions for pointer types
@@ -219,13 +116,6 @@ func float64Ptr(f float64) *float64 {
 // boolPtr returns a pointer to a bool.
 func boolPtr(b bool) *bool {
 	return &b
-}
-
-// init automatically configures Foundry environment variables at package load time.
-// This ensures the CLI subprocess receives the correct environment configuration.
-func init() {
-	// Auto-detect and inject Foundry configuration
-	detectFoundryConfig()
 }
 
 // truncateString truncates a string to maxLen characters for logging
@@ -332,4 +222,160 @@ func consumeAllMessagesUntilResult(ctx context.Context, msgChan <-chan types.Mes
 			}
 		}
 	}
+}
+
+// ============================================================================
+// Verbose Test Helpers - Display execution status during tests
+// ============================================================================
+
+// TestLogger provides verbose logging for E2E tests
+type TestLogger struct {
+	t       *testing.T
+	prefix  string
+	enabled bool
+}
+
+// NewTestLogger creates a new test logger
+func NewTestLogger(t *testing.T, prefix string) *TestLogger {
+	return &TestLogger{
+		t:       t,
+		prefix:  prefix,
+		enabled: true,
+	}
+}
+
+// Log logs a message with the test logger prefix
+func (l *TestLogger) Log(format string, args ...interface{}) {
+	if l.enabled {
+		msg := fmt.Sprintf(format, args...)
+		l.t.Logf("[%s] %s", l.prefix, msg)
+	}
+}
+
+// Step logs a test step with a clear marker
+func (l *TestLogger) Step(step string) {
+	if l.enabled {
+		l.t.Logf("\n========== [%s] %s ==========", l.prefix, step)
+	}
+}
+
+// Message logs a received message with details
+func (l *TestLogger) Message(msgType string, details string) {
+	if l.enabled {
+		l.t.Logf("  📩 [%s] %s", msgType, details)
+	}
+}
+
+// Status logs a status update
+func (l *TestLogger) Status(status string) {
+	if l.enabled {
+		l.t.Logf("  ⚡ %s", status)
+	}
+}
+
+// Error logs an error
+func (l *TestLogger) Error(err error) {
+	if l.enabled {
+		l.t.Logf("  ❌ Error: %v", err)
+	}
+}
+
+// Result logs the final result
+func (l *TestLogger) Result(success bool, details string) {
+	if l.enabled {
+		if success {
+			l.t.Logf("  ✅ Result: %s", details)
+		} else {
+			l.t.Logf("  ❌ Result: %s", details)
+		}
+	}
+}
+
+// ConsumeMessagesVerbose consumes messages with verbose output showing execution status
+func ConsumeMessagesVerbose(ctx context.Context, t *testing.T, msgChan <-chan types.Message, testName string) (count int, foundResult bool, resultMsg *types.ResultMessage) {
+	logger := NewTestLogger(t, testName)
+	logger.Step("Waiting for messages")
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Status("Context done (timeout)")
+			return
+		case msg, ok := <-msgChan:
+			if !ok {
+				logger.Status("Channel closed")
+				return
+			}
+			count++
+
+			switch m := msg.(type) {
+			case *types.AssistantMessage:
+				details := formatContent(m.Content)
+				logger.Message("AssistantMessage", details)
+			case *types.ResultMessage:
+				foundResult = true
+				resultMsg = m
+				costStr := "<nil>"
+				if m.TotalCostUSD != nil {
+					costStr = fmt.Sprintf("%.6f", *m.TotalCostUSD)
+				}
+				logger.Result(!m.IsError, fmt.Sprintf("IsError=%v, TotalCostUSD=%s", m.IsError, costStr))
+				// Continue draining in background
+				go func() {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case _, ok := <-msgChan:
+							if !ok {
+								return
+							}
+						}
+					}
+				}()
+				return
+			default:
+				logger.Message("Message", fmt.Sprintf("%T", msg))
+			}
+		}
+	}
+}
+
+// CreateVerboseHook creates a hook callback that logs execution status
+func CreateVerboseHook(t *testing.T, hookName string) types.HookCallback {
+	return &verboseHookCallback{
+		t:        t,
+		hookName: hookName,
+	}
+}
+
+type verboseHookCallback struct {
+	t        *testing.T
+	hookName string
+}
+
+func (h *verboseHookCallback) Execute(input types.HookInput, toolUseID *string, context types.HookContext) (types.HookJSONOutput, error) {
+	h.t.Logf("  🪝 [%s] Hook executed: %T", h.hookName, input)
+	return types.SyncHookJSONOutput{
+		Continue_: types.Bool(true),
+	}, nil
+}
+
+// PrintTestHeader prints a formatted test header
+func PrintTestHeader(t *testing.T, testName string) {
+	t.Logf("\n============================================================")
+	t.Logf("  TEST: %s", testName)
+	t.Logf("============================================================")
+}
+
+// PrintTestSummary prints a formatted test summary
+func PrintTestSummary(t *testing.T, testName string, success bool, messageCount int, duration time.Duration) {
+	status := "✅ PASSED"
+	if !success {
+		status = "❌ FAILED"
+	}
+	t.Logf("\n------------------------------------------------------------")
+	t.Logf("  %s: %s", status, testName)
+	t.Logf("  Messages: %d | Duration: %v", messageCount, duration)
+	t.Logf("------------------------------------------------------------")
 }

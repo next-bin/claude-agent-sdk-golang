@@ -502,33 +502,46 @@ func TestSettingSourcesProjectIncluded(t *testing.T) {
 
 	foundLocalStyle := false
 	var msgCount int
-	for msg := range msgChan {
-		msgCount++
-		switch m := msg.(type) {
-		case *types.SystemMessage:
-			t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
-			if m.Subtype == "init" {
-				outputStyle, _ := m.Data["output_style"].(string)
-				t.Logf("outputStyle: %s", outputStyle)
-				if outputStyle == "local-test-style" {
-					foundLocalStyle = true
-					t.Log("SUCCESS: Found local-test-style in outputStyle")
-				}
-			}
-		case *types.AssistantMessage:
-			t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
-		case *types.ResultMessage:
-			t.Logf("Received ResultMessage: %s", formatResult(m.Result))
-			t.Logf("Total messages received: %d", msgCount)
+	for {
+		select {
+		case <-ctx.Done():
+			t.Logf("Context done, total messages received: %d", msgCount)
 			t.Logf("Found local style: %v", foundLocalStyle)
-			t.Log("TEST PASSED: Setting sources project included test completed")
-			return
+			if foundLocalStyle {
+				t.Log("TEST PASSED: Found local-test-style before timeout")
+				return
+			}
+			t.Fatal("Test timed out before completion")
+		case msg, ok := <-msgChan:
+			if !ok {
+				t.Logf("Message channel closed, total messages: %d", msgCount)
+				return
+			}
+			msgCount++
+			switch m := msg.(type) {
+			case *types.SystemMessage:
+				t.Logf("Received SystemMessage: subtype=%s", m.Subtype)
+				if m.Subtype == "init" {
+					outputStyle, _ := m.Data["output_style"].(string)
+					t.Logf("outputStyle: %s", outputStyle)
+					if outputStyle == "local-test-style" {
+						foundLocalStyle = true
+						t.Log("SUCCESS: Found local-test-style in outputStyle")
+					}
+				}
+			case *types.AssistantMessage:
+				t.Logf("Received AssistantMessage: %s", formatContent(m.Content))
+			case *types.ResultMessage:
+				t.Logf("Received ResultMessage: %s", formatResult(m.Result))
+				t.Logf("Total messages received: %d", msgCount)
+				t.Logf("Found local style: %v", foundLocalStyle)
+				t.Log("TEST PASSED: Setting sources project included test completed")
+				return
+			default:
+				t.Logf("Received unknown message type: %T", msg)
+			}
 		}
 	}
-
-	t.Logf("Total messages received: %d", msgCount)
-	t.Logf("Found local style: %v", foundLocalStyle)
-	t.Log("TEST PASSED: Setting sources project included test completed")
 }
 
 // TestFilesystemAgentLoading tests that filesystem-based agents load via setting_sources
