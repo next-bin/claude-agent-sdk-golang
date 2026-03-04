@@ -571,6 +571,7 @@ type McpSdkServerConfig struct {
 // McpServerConfig is a union type for all MCP server configuration types.
 type McpServerConfig interface {
 	GetType() string
+	ToMap() map[string]interface{}
 }
 
 // GetType returns the server type.
@@ -581,14 +582,131 @@ func (c McpStdioServerConfig) GetType() string {
 	return c.Type
 }
 
+// ToMap converts the config to a map for JSON serialization.
+func (c McpStdioServerConfig) ToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"type":    c.GetType(),
+		"command": c.Command,
+	}
+	if len(c.Args) > 0 {
+		result["args"] = c.Args
+	}
+	if len(c.Env) > 0 {
+		result["env"] = c.Env
+	}
+	return result
+}
+
 // GetType returns the server type.
 func (c McpSSEServerConfig) GetType() string { return c.Type }
+
+// ToMap converts the config to a map for JSON serialization.
+func (c McpSSEServerConfig) ToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"type": c.Type,
+		"url":  c.URL,
+	}
+	if len(c.Headers) > 0 {
+		result["headers"] = c.Headers
+	}
+	return result
+}
 
 // GetType returns the server type.
 func (c McpHttpServerConfig) GetType() string { return c.Type }
 
+// ToMap converts the config to a map for JSON serialization.
+func (c McpHttpServerConfig) ToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"type": c.Type,
+		"url":  c.URL,
+	}
+	if len(c.Headers) > 0 {
+		result["headers"] = c.Headers
+	}
+	return result
+}
+
 // GetType returns the server type.
 func (c McpSdkServerConfig) GetType() string { return c.Type }
+
+// ToMap converts the config to a map for JSON serialization.
+func (c McpSdkServerConfig) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"type":     c.Type,
+		"name":     c.Name,
+		"instance": c.Instance,
+	}
+}
+
+// ============================================================================
+// MCP Server Status Types (returned by get_mcp_status)
+// ============================================================================
+
+// McpServerConnectionStatus represents connection status values for an MCP server.
+type McpServerConnectionStatus string
+
+const (
+	McpServerStatusConnected McpServerConnectionStatus = "connected"
+	McpServerStatusFailed    McpServerConnectionStatus = "failed"
+	McpServerStatusNeedsAuth McpServerConnectionStatus = "needs-auth"
+	McpServerStatusPending   McpServerConnectionStatus = "pending"
+	McpServerStatusDisabled  McpServerConnectionStatus = "disabled"
+)
+
+// McpSdkServerConfigStatus represents SDK MCP server config as returned in status responses.
+// Unlike McpSdkServerConfig (which includes the in-process Instance),
+// this output-only type only has serializable fields.
+type McpSdkServerConfigStatus struct {
+	Type string `json:"type"` // Always "sdk"
+	Name string `json:"name"`
+}
+
+// McpClaudeAIProxyServerConfig represents Claude.ai proxy MCP server config.
+// Output-only type that appears in status responses for servers proxied through Claude.ai.
+type McpClaudeAIProxyServerConfig struct {
+	Type string `json:"type"` // Always "claudeai-proxy"
+	URL  string `json:"url"`
+	ID   string `json:"id"`
+}
+
+// McpToolAnnotations represents tool annotations as returned in MCP server status.
+type McpToolAnnotations struct {
+	ReadOnly    *bool `json:"readOnly,omitempty"`
+	Destructive *bool `json:"destructive,omitempty"`
+	OpenWorld   *bool `json:"openWorld,omitempty"`
+}
+
+// McpToolInfo represents information about a tool provided by an MCP server.
+type McpToolInfo struct {
+	Name        string              `json:"name"`
+	Description *string             `json:"description,omitempty"`
+	Annotations *McpToolAnnotations `json:"annotations,omitempty"`
+}
+
+// McpServerInfo represents server info from MCP initialize handshake (available when connected).
+type McpServerInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// McpServerStatus represents status information for an MCP server connection.
+// Returned by ClaudeSDKClient.GetMCPStatus() in the McpServers list.
+type McpServerStatus struct {
+	Name       string                    `json:"name"`                 // Server name as configured
+	Status     McpServerConnectionStatus `json:"status"`               // Current connection status
+	ServerInfo *McpServerInfo            `json:"serverInfo,omitempty"` // Server info from MCP handshake
+	Error      *string                   `json:"error,omitempty"`      // Error message (when status is 'failed')
+	Config     map[string]interface{}    `json:"config,omitempty"`     // Server configuration
+	Scope      *string                   `json:"scope,omitempty"`      // Configuration scope (project, user, local, etc.)
+	Tools      []McpToolInfo             `json:"tools,omitempty"`      // Tools provided by this server
+}
+
+// McpStatusResponse represents the response from ClaudeSDKClient.GetMCPStatus().
+// It wraps the list of server statuses under the McpServers key.
+type McpStatusResponse struct {
+	McpServers []McpServerStatus `json:"mcpServers"`
+}
 
 // ============================================================================
 // SDK Plugin Configuration
@@ -789,6 +907,62 @@ type SystemMessage struct {
 	Data    map[string]interface{} `json:"data"`
 }
 
+// TaskUsage represents usage statistics reported in task_progress and task_notification messages.
+type TaskUsage struct {
+	TotalTokens int `json:"total_tokens"`
+	ToolUses    int `json:"tool_uses"`
+	DurationMs  int `json:"duration_ms"`
+}
+
+// TaskNotificationStatus represents possible status values for a task_notification message.
+type TaskNotificationStatus string
+
+const (
+	TaskNotificationStatusCompleted TaskNotificationStatus = "completed"
+	TaskNotificationStatusFailed    TaskNotificationStatus = "failed"
+	TaskNotificationStatusStopped   TaskNotificationStatus = "stopped"
+)
+
+// TaskStartedMessage represents a system message emitted when a task starts.
+// It is a subclass of SystemMessage: existing isinstance checks continue to match.
+// The base Subtype and Data fields remain populated with the raw payload.
+type TaskStartedMessage struct {
+	SystemMessage
+	TaskID      string  `json:"task_id"`
+	Description string  `json:"description"`
+	UUID        string  `json:"uuid"`
+	SessionID   string  `json:"session_id"`
+	ToolUseID   *string `json:"tool_use_id,omitempty"`
+	TaskType    *string `json:"task_type,omitempty"`
+}
+
+// TaskProgressMessage represents a system message emitted while a task is in progress.
+// It is a subclass of SystemMessage: existing isinstance checks continue to match.
+type TaskProgressMessage struct {
+	SystemMessage
+	TaskID       string    `json:"task_id"`
+	Description  string    `json:"description"`
+	Usage        TaskUsage `json:"usage"`
+	UUID         string    `json:"uuid"`
+	SessionID    string    `json:"session_id"`
+	ToolUseID    *string   `json:"tool_use_id,omitempty"`
+	LastToolName *string   `json:"last_tool_name,omitempty"`
+}
+
+// TaskNotificationMessage represents a system message emitted when a task completes, fails, or is stopped.
+// It is a subclass of SystemMessage: existing isinstance checks continue to match.
+type TaskNotificationMessage struct {
+	SystemMessage
+	TaskID     string                 `json:"task_id"`
+	Status     TaskNotificationStatus `json:"status"`
+	OutputFile string                 `json:"output_file"`
+	Summary    string                 `json:"summary"`
+	UUID       string                 `json:"uuid"`
+	SessionID  string                 `json:"session_id"`
+	ToolUseID  *string                `json:"tool_use_id,omitempty"`
+	Usage      *TaskUsage             `json:"usage,omitempty"`
+}
+
 // ResultMessage represents a result message with cost and usage information.
 type ResultMessage struct {
 	Subtype          string                 `json:"subtype"`
@@ -797,6 +971,7 @@ type ResultMessage struct {
 	IsError          bool                   `json:"is_error"`
 	NumTurns         int                    `json:"num_turns"`
 	SessionID        string                 `json:"session_id"`
+	StopReason       *string                `json:"stop_reason,omitempty"`
 	TotalCostUSD     *float64               `json:"total_cost_usd,omitempty"`
 	Usage            map[string]interface{} `json:"usage,omitempty"`
 	Result           *string                `json:"result,omitempty"`
@@ -1022,6 +1197,25 @@ type SDKControlRewindFilesRequest struct {
 	UserMessageID string `json:"user_message_id"`
 }
 
+// SDKControlMcpReconnectRequest represents a request to reconnect a disconnected or failed MCP server.
+type SDKControlMcpReconnectRequest struct {
+	Subtype    string `json:"subtype"`    // Always "mcp_reconnect"
+	ServerName string `json:"serverName"` // Note: wire protocol uses camelCase
+}
+
+// SDKControlMcpToggleRequest represents a request to enable or disable an MCP server.
+type SDKControlMcpToggleRequest struct {
+	Subtype    string `json:"subtype"`    // Always "mcp_toggle"
+	ServerName string `json:"serverName"` // Note: wire protocol uses camelCase
+	Enabled    bool   `json:"enabled"`
+}
+
+// SDKControlStopTaskRequest represents a request to stop a running task.
+type SDKControlStopTaskRequest struct {
+	Subtype string `json:"subtype"` // Always "stop_task"
+	TaskID  string `json:"task_id"`
+}
+
 // SDKControlRequest represents a control request from the CLI.
 type SDKControlRequest struct {
 	Type      string      `json:"type"` // Always "control_request"
@@ -1107,6 +1301,24 @@ func UnmarshalSDKControlRequest(data []byte) (*SDKControlRequest, error) {
 		request = req
 	case "rewind_files":
 		var req SDKControlRewindFilesRequest
+		if err := json.Unmarshal(raw.Request, &req); err != nil {
+			return nil, err
+		}
+		request = req
+	case "mcp_reconnect":
+		var req SDKControlMcpReconnectRequest
+		if err := json.Unmarshal(raw.Request, &req); err != nil {
+			return nil, err
+		}
+		request = req
+	case "mcp_toggle":
+		var req SDKControlMcpToggleRequest
+		if err := json.Unmarshal(raw.Request, &req); err != nil {
+			return nil, err
+		}
+		request = req
+	case "stop_task":
+		var req SDKControlStopTaskRequest
 		if err := json.Unmarshal(raw.Request, &req); err != nil {
 			return nil, err
 		}

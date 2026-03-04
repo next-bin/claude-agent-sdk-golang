@@ -653,6 +653,34 @@ func (q *Query) RewindFiles(ctx context.Context, userMessageID string) error {
 	return err
 }
 
+// ReconnectMCPServer reconnects a disconnected or failed MCP server.
+func (q *Query) ReconnectMCPServer(ctx context.Context, serverName string) error {
+	_, err := q.sendControlRequest(ctx, map[string]interface{}{
+		"subtype":    "mcp_reconnect",
+		"serverName": serverName,
+	}, 60*time.Second)
+	return err
+}
+
+// ToggleMCPServer enables or disables an MCP server.
+func (q *Query) ToggleMCPServer(ctx context.Context, serverName string, enabled bool) error {
+	_, err := q.sendControlRequest(ctx, map[string]interface{}{
+		"subtype":    "mcp_toggle",
+		"serverName": serverName,
+		"enabled":    enabled,
+	}, 60*time.Second)
+	return err
+}
+
+// StopTask stops a running task.
+func (q *Query) StopTask(ctx context.Context, taskID string) error {
+	_, err := q.sendControlRequest(ctx, map[string]interface{}{
+		"subtype": "stop_task",
+		"task_id": taskID,
+	}, 60*time.Second)
+	return err
+}
+
 // StreamInput streams input messages to transport.
 //
 // If SDK MCP servers or hooks are present, waits for the first result

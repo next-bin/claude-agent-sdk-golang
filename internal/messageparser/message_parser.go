@@ -302,7 +302,7 @@ func parseAssistantMessage(data map[string]interface{}) (*types.AssistantMessage
 }
 
 // parseSystemMessage parses a system message.
-func parseSystemMessage(data map[string]interface{}) (*types.SystemMessage, error) {
+func parseSystemMessage(data map[string]interface{}) (types.Message, error) {
 	subtype, ok := data["subtype"].(string)
 	if !ok {
 		return nil, errors.NewMessageParseError(
@@ -311,9 +311,244 @@ func parseSystemMessage(data map[string]interface{}) (*types.SystemMessage, erro
 		)
 	}
 
-	return &types.SystemMessage{
-		Subtype: subtype,
-		Data:    data,
+	// Check for specific task message subtypes
+	switch subtype {
+	case "task_started":
+		return parseTaskStartedMessage(data)
+	case "task_progress":
+		return parseTaskProgressMessage(data)
+	case "task_notification":
+		return parseTaskNotificationMessage(data)
+	default:
+		// Generic system message
+		return &types.SystemMessage{
+			Subtype: subtype,
+			Data:    data,
+		}, nil
+	}
+}
+
+// parseTaskStartedMessage parses a task_started system message.
+func parseTaskStartedMessage(data map[string]interface{}) (*types.TaskStartedMessage, error) {
+	taskID, ok := data["task_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskStartedMessage missing 'task_id' field",
+			data,
+		)
+	}
+
+	description, ok := data["description"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskStartedMessage missing 'description' field",
+			data,
+		)
+	}
+
+	uuid, ok := data["uuid"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskStartedMessage missing 'uuid' field",
+			data,
+		)
+	}
+
+	sessionID, ok := data["session_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskStartedMessage missing 'session_id' field",
+			data,
+		)
+	}
+
+	var toolUseID *string
+	if t, ok := data["tool_use_id"].(string); ok {
+		toolUseID = &t
+	}
+
+	var taskType *string
+	if t, ok := data["task_type"].(string); ok {
+		taskType = &t
+	}
+
+	return &types.TaskStartedMessage{
+		SystemMessage: types.SystemMessage{
+			Subtype: "task_started",
+			Data:    data,
+		},
+		TaskID:      taskID,
+		Description: description,
+		UUID:        uuid,
+		SessionID:   sessionID,
+		ToolUseID:   toolUseID,
+		TaskType:    taskType,
+	}, nil
+}
+
+// parseTaskProgressMessage parses a task_progress system message.
+func parseTaskProgressMessage(data map[string]interface{}) (*types.TaskProgressMessage, error) {
+	taskID, ok := data["task_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskProgressMessage missing 'task_id' field",
+			data,
+		)
+	}
+
+	description, ok := data["description"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskProgressMessage missing 'description' field",
+			data,
+		)
+	}
+
+	usageData, ok := data["usage"].(map[string]interface{})
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskProgressMessage missing 'usage' field",
+			data,
+		)
+	}
+
+	usage, err := parseTaskUsage(usageData)
+	if err != nil {
+		return nil, errors.NewMessageParseError(
+			"TaskProgressMessage has invalid 'usage' field",
+			data,
+		)
+	}
+
+	uuid, ok := data["uuid"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskProgressMessage missing 'uuid' field",
+			data,
+		)
+	}
+
+	sessionID, ok := data["session_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskProgressMessage missing 'session_id' field",
+			data,
+		)
+	}
+
+	var toolUseID *string
+	if t, ok := data["tool_use_id"].(string); ok {
+		toolUseID = &t
+	}
+
+	var lastToolName *string
+	if t, ok := data["last_tool_name"].(string); ok {
+		lastToolName = &t
+	}
+
+	return &types.TaskProgressMessage{
+		SystemMessage: types.SystemMessage{
+			Subtype: "task_progress",
+			Data:    data,
+		},
+		TaskID:       taskID,
+		Description:  description,
+		Usage:        usage,
+		UUID:         uuid,
+		SessionID:    sessionID,
+		ToolUseID:    toolUseID,
+		LastToolName: lastToolName,
+	}, nil
+}
+
+// parseTaskNotificationMessage parses a task_notification system message.
+func parseTaskNotificationMessage(data map[string]interface{}) (*types.TaskNotificationMessage, error) {
+	taskID, ok := data["task_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskNotificationMessage missing 'task_id' field",
+			data,
+		)
+	}
+
+	status, ok := data["status"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskNotificationMessage missing 'status' field",
+			data,
+		)
+	}
+
+	outputFile, ok := data["output_file"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskNotificationMessage missing 'output_file' field",
+			data,
+		)
+	}
+
+	summary, ok := data["summary"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskNotificationMessage missing 'summary' field",
+			data,
+		)
+	}
+
+	uuid, ok := data["uuid"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskNotificationMessage missing 'uuid' field",
+			data,
+		)
+	}
+
+	sessionID, ok := data["session_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"TaskNotificationMessage missing 'session_id' field",
+			data,
+		)
+	}
+
+	var toolUseID *string
+	if t, ok := data["tool_use_id"].(string); ok {
+		toolUseID = &t
+	}
+
+	var usage *types.TaskUsage
+	if usageData, ok := data["usage"].(map[string]interface{}); ok {
+		if parsedUsage, err := parseTaskUsage(usageData); err == nil {
+			usage = &parsedUsage
+		}
+	}
+
+	return &types.TaskNotificationMessage{
+		SystemMessage: types.SystemMessage{
+			Subtype: "task_notification",
+			Data:    data,
+		},
+		TaskID:     taskID,
+		Status:     types.TaskNotificationStatus(status),
+		OutputFile: outputFile,
+		Summary:    summary,
+		UUID:       uuid,
+		SessionID:  sessionID,
+		ToolUseID:  toolUseID,
+		Usage:      usage,
+	}, nil
+}
+
+// parseTaskUsage parses task usage statistics.
+func parseTaskUsage(data map[string]interface{}) (types.TaskUsage, error) {
+	totalTokens, _ := data["total_tokens"].(float64) // JSON numbers are float64
+	toolUses, _ := data["tool_uses"].(float64)
+	durationMs, _ := data["duration_ms"].(float64)
+
+	return types.TaskUsage{
+		TotalTokens: int(totalTokens),
+		ToolUses:    int(toolUses),
+		DurationMs:  int(durationMs),
 	}, nil
 }
 

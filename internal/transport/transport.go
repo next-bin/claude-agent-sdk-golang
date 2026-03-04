@@ -394,6 +394,32 @@ func (t *SubprocessCLITransport) buildCommand() []string {
 
 	if t.options.MCPServers != nil {
 		switch v := t.options.MCPServers.(type) {
+		case map[string]types.McpServerConfig:
+			// Handle typed map[string]McpServerConfig (recommended Go API)
+			serversForCLI := make(map[string]interface{})
+			for name, config := range v {
+				// Convert McpServerConfig to map for JSON serialization
+				configMap := config.ToMap()
+				if serverType, hasType := configMap["type"]; hasType && serverType == "sdk" {
+					// For SDK servers, pass everything except the instance field
+					sdkConfig := make(map[string]interface{})
+					for k, val := range configMap {
+						if k != "instance" {
+							sdkConfig[k] = val
+						}
+					}
+					serversForCLI[name] = sdkConfig
+				} else {
+					serversForCLI[name] = configMap
+				}
+			}
+			if len(serversForCLI) > 0 {
+				mcpConfig := map[string]interface{}{"mcpServers": serversForCLI}
+				mcpJSON, err := json.Marshal(mcpConfig)
+				if err == nil {
+					cmd = append(cmd, "--mcp-config", string(mcpJSON))
+				}
+			}
 		case map[string]interface{}:
 			// Process all servers, stripping instance field from SDK servers
 			serversForCLI := make(map[string]interface{})

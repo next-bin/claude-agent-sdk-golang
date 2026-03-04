@@ -113,7 +113,17 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 	// Extract SDK MCP servers from options
 	sdkMcpServers := make(map[string]query.McpServer)
 	if c.options.MCPServers != nil {
-		if servers, ok := c.options.MCPServers.(map[string]interface{}); ok {
+		// Try map[string]types.McpServerConfig first (typed map)
+		if servers, ok := c.options.MCPServers.(map[string]types.McpServerConfig); ok {
+			for name, config := range servers {
+				if sdkConfig, ok := config.(types.McpSdkServerConfig); ok {
+					if srv, ok := sdkConfig.Instance.(query.McpServer); ok {
+						sdkMcpServers[name] = srv
+					}
+				}
+			}
+		} else if servers, ok := c.options.MCPServers.(map[string]interface{}); ok {
+			// Try map[string]interface{} (untyped map)
 			for name, config := range servers {
 				if cfg, ok := config.(map[string]interface{}); ok {
 					if cfg["type"] == "sdk" {
@@ -607,6 +617,56 @@ func (c *Client) RewindFiles(ctx context.Context, userMessageID string) error {
 		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
 	}
 	return c.query.RewindFiles(ctx, userMessageID)
+}
+
+// ReconnectMCPServer reconnects a disconnected or failed MCP server.
+// It only works in streaming mode.
+//
+// Use this to retry connecting to an MCP server that failed to connect
+// or was disconnected. Returns an exception if the reconnection fails.
+//
+// The serverName parameter is the name of the MCP server to reconnect.
+//
+// ReconnectMCPServer returns an error if the client is not connected.
+func (c *Client) ReconnectMCPServer(ctx context.Context, serverName string) error {
+	if !c.connected || c.query == nil {
+		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
+	}
+	return c.query.ReconnectMCPServer(ctx, serverName)
+}
+
+// ToggleMCPServer enables or disables an MCP server.
+// It only works in streaming mode.
+//
+// Disabling a server disconnects it and removes its tools from the
+// available tool set. Enabling a server reconnects it and makes its
+// tools available again. Returns an exception on failure.
+//
+// The serverName parameter is the name of the MCP server to toggle.
+// The enabled parameter is true to enable the server, false to disable it.
+//
+// ToggleMCPServer returns an error if the client is not connected.
+func (c *Client) ToggleMCPServer(ctx context.Context, serverName string, enabled bool) error {
+	if !c.connected || c.query == nil {
+		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
+	}
+	return c.query.ToggleMCPServer(ctx, serverName, enabled)
+}
+
+// StopTask stops a running task.
+// It only works in streaming mode.
+//
+// After this resolves, a task_notification system message with
+// status 'stopped' will be emitted by the CLI in the message stream.
+//
+// The taskID parameter is the task ID from task_notification events.
+//
+// StopTask returns an error if the client is not connected.
+func (c *Client) StopTask(ctx context.Context, taskID string) error {
+	if !c.connected || c.query == nil {
+		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
+	}
+	return c.query.StopTask(ctx, taskID)
 }
 
 // GetMCPStatus returns the current MCP server connection status.
