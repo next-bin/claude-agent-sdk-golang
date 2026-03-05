@@ -293,6 +293,8 @@ func convertToHookInput(input interface{}) types.HookInput {
 		return parsePostToolUseFailureHookInput(inputMap)
 	case types.HookEventUserPromptSubmit:
 		return parseUserPromptSubmitHookInput(inputMap)
+	case types.HookEventPermissionRequest:
+		return parsePermissionRequestHookInput(inputMap)
 	default:
 		// Return a generic input with just the event name
 		return &genericHookInput{hookEventName: hookEventName, data: inputMap}
@@ -409,6 +411,13 @@ func parsePreToolUseHookInput(m map[string]interface{}) types.PreToolUseHookInpu
 	if permMode, ok := m["permission_mode"].(string); ok {
 		input.PermissionMode = &permMode
 	}
+	// Parse agent context fields (present when hook fires from sub-agent)
+	if agentID, ok := m["agent_id"].(string); ok {
+		input.AgentID = &agentID
+	}
+	if agentType, ok := m["agent_type"].(string); ok {
+		input.AgentType = &agentType
+	}
 	return input
 }
 
@@ -429,6 +438,13 @@ func parsePostToolUseHookInput(m map[string]interface{}) types.PostToolUseHookIn
 	if toolUseID, ok := m["tool_use_id"].(string); ok {
 		input.ToolUseID = toolUseID
 	}
+	// Parse agent context fields (present when hook fires from sub-agent)
+	if agentID, ok := m["agent_id"].(string); ok {
+		input.AgentID = &agentID
+	}
+	if agentType, ok := m["agent_type"].(string); ok {
+		input.AgentType = &agentType
+	}
 	return input
 }
 
@@ -443,8 +459,18 @@ func parsePostToolUseFailureHookInput(m map[string]interface{}) types.PostToolUs
 	if toolInput, ok := m["tool_input"].(map[string]interface{}); ok {
 		input.ToolInput = toolInput
 	}
+	if toolUseID, ok := m["tool_use_id"].(string); ok {
+		input.ToolUseID = toolUseID
+	}
 	if errMsg, ok := m["error"].(string); ok {
 		input.Error = errMsg
+	}
+	// Parse agent context fields (present when hook fires from sub-agent)
+	if agentID, ok := m["agent_id"].(string); ok {
+		input.AgentID = &agentID
+	}
+	if agentType, ok := m["agent_type"].(string); ok {
+		input.AgentType = &agentType
 	}
 	return input
 }
@@ -456,6 +482,30 @@ func parseUserPromptSubmitHookInput(m map[string]interface{}) types.UserPromptSu
 	}
 	if prompt, ok := m["prompt"].(string); ok {
 		input.Prompt = prompt
+	}
+	return input
+}
+
+// parsePermissionRequestHookInput parses a map into PermissionRequestHookInput.
+func parsePermissionRequestHookInput(m map[string]interface{}) types.PermissionRequestHookInput {
+	input := types.PermissionRequestHookInput{
+		HookEventName: "PermissionRequest",
+	}
+	if toolName, ok := m["tool_name"].(string); ok {
+		input.ToolName = toolName
+	}
+	if toolInput, ok := m["tool_input"].(map[string]interface{}); ok {
+		input.ToolInput = toolInput
+	}
+	if suggestions, ok := m["permission_suggestions"].([]interface{}); ok {
+		input.PermissionSuggestions = suggestions
+	}
+	// Parse agent context fields (present when hook fires from sub-agent)
+	if agentID, ok := m["agent_id"].(string); ok {
+		input.AgentID = &agentID
+	}
+	if agentType, ok := m["agent_type"].(string); ok {
+		input.AgentType = &agentType
 	}
 	return input
 }

@@ -1,0 +1,998 @@
+// Package sessions provides functions for listing and reading Claude Code sessions.
+//
+// This package implements the Sessions API (v0.1.46) which allows:
+//   - Listing sessions with metadata extracted from stat + head/tail reads
+//   - Reading session messages by parsing JSONL transcripts and building conversation chains
+//
+// The implementation scans ~/.claude/projects/ directory structure and handles
+// git worktree detection, path sanitization, and hash mismatch tolerance.
+package sessions
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"sort"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/unitsvc/claude-agent-sdk-golang/types"
+)
+
+// Constants matching Python SDK
+const (
+	// LiteReadBufSize is the size of the head/tail buffer for lite metadata reads.
+	LiteReadBufSize = 65536
+
+	// MaxSanitizedLength is the maximum length for a sanitized path component.
+	// Most filesystems limit individual components to 255 bytes.
+	MaxSanitizedLength = 200
+)
+
+// Regex patterns
+var (
+	uuidRegex = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+	// Pattern matching auto-generated or system messages to skip
+	skipFirstPromptPattern = regexp.MustCompile(
+		`^(?:<local-command-stdout>|<session-start-hook>|<tick>|<goal>|` +
+			`\[Request interrupted by user[^\]]*\]|` +
+			`\s*<ide_opened_file>[\s\S]*</ide_opened_file>\s*$|` +
+			`\s*<ide_selection>[\s\S]*</ide_selection>\s*$)`)
+
+	commandNameRegex = regexp.MustCompile(`<command-name>(.*?)</command-name>`)
+
+	sanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9]`)
+)
+
+// ListSessions lists sessions with metadata extracted from stat + head/tail reads.
+//
+// When directory is provided, returns sessions for that project directory and its
+// git worktrees. When empty, returns sessions across all projects.
+//
+// The limit parameter limits the number of sessions returned (0 means no limit).
+// The includeWorktrees parameter controls whether to include git worktree sessions.
+func ListSessions(directory string, limit int, includeWorktrees bool) ([]types.SDKSessionInfo, error) {
+	if directory != "" {
+		return listSessionsForProject(directory, limit, includeWorktrees)
+	}
+	return listAllSessions(limit)
+}
+
+// GetSessionMessages reads a session's conversation messages from its JSONL transcript file.
+//
+// Parses the full JSONL, builds the conversation chain via parentUuid links,
+// and returns user/assistant messages in chronological order.
+//
+// The limit parameter limits the number of messages returned (0 means no limit).
+// The offset parameter skips the first N messages.
+func GetSessionMessages(sessionID, directory string, limit, offset int) ([]types.SessionMessage, error) {
+	// Validate session ID
+	if !isValidUUID(sessionID) {
+		return nil, nil
+	}
+
+	content, err := readSessionFile(sessionID, directory)
+	if err != nil || content == "" {
+		return nil, nil
+	}
+
+	entries := parseTranscriptEntries(content)
+	chain := buildConversationChain(entries)
+	visible := filterVisibleMessages(chain)
+	messages := convertToSessionMessages(visible)
+
+	// Apply offset and limit
+	if offset > 0 && offset < len(messages) {
+		messages = messages[offset:]
+	} else if offset >= len(messages) {
+		return nil, nil
+	}
+
+	if limit > 0 && limit < len(messages) {
+		messages = messages[:limit]
+	}
+
+	return messages, nil
+}
+
+// ============================================================================
+// Path sanitization
+// ============================================================================
+
+// simpleHash computes a 32-bit integer hash in base36 (matching JS implementation).
+func simpleHash(s string) string {
+	h := uint32(0)
+	for _, ch := range s {
+		h = (h << 5) - h + uint32(ch)
+	}
+
+	// Convert to int32 to emulate JS >>> 0 behavior
+	signed := int32(h)
+	if signed < 0 {
+		signed = -signed
+	}
+
+	// Convert to base36
+	if signed == 0 {
+		return "0"
+	}
+
+	digits := "0123456789abcdefghijklmnopqrstuvwxyz"
+	var out []byte
+	n := uint32(signed)
+	for n > 0 {
+		out = append([]byte{digits[n%36]}, out...)
+		n /= 36
+	}
+	return string(out)
+}
+
+// sanitizePath makes a string safe for use as a directory name.
+func sanitizePath(name string) string {
+	sanitized := sanitizeRegex.ReplaceAllString(name, "-")
+	if len(sanitized) <= MaxSanitizedLength {
+		return sanitized
+	}
+	h := simpleHash(name)
+	return fmt.Sprintf("%s-%s", sanitized[:MaxSanitizedLength], h)
+}
+
+// ============================================================================
+// Config directories
+// ============================================================================
+
+// getClaudeConfigHomeDir returns the Claude config directory (respects CLAUDE_CONFIG_DIR).
+func getClaudeConfigHomeDir() string {
+	configDir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if configDir != "" {
+		return normalizePath(configDir)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".claude")
+}
+
+// getProjectsDir returns the projects directory under the Claude config.
+func getProjectsDir() string {
+	return filepath.Join(getClaudeConfigHomeDir(), "projects")
+}
+
+// getProjectDir returns the project directory for a given path.
+func getProjectDir(projectPath string) string {
+	return filepath.Join(getProjectsDir(), sanitizePath(projectPath))
+}
+
+// normalizePath resolves a directory path to its canonical form.
+func normalizePath(d string) string {
+	resolved, err := filepath.Abs(d)
+	if err != nil {
+		resolved = d
+	}
+
+	// Normalize unicode to NFC form
+	return strings.ToValidUTF8(resolved, "")
+}
+
+// findProjectDir finds the project directory for a given path.
+//
+// Tolerates hash mismatches for long paths (>200 chars).
+func findProjectDir(projectPath string) string {
+	exact := getProjectDir(projectPath)
+	if _, err := os.Stat(exact); err == nil {
+		return exact
+	}
+
+	// Exact match failed - try prefix matching for long paths
+	sanitized := sanitizePath(projectPath)
+	if len(sanitized) <= MaxSanitizedLength {
+		return ""
+	}
+
+	prefix := sanitized[:MaxSanitizedLength]
+	projectsDir := getProjectsDir()
+
+	entries, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), prefix+"-") {
+			return filepath.Join(projectsDir, entry.Name())
+		}
+	}
+	return ""
+}
+
+// ============================================================================
+// UUID validation
+// ============================================================================
+
+func isValidUUID(s string) bool {
+	return uuidRegex.MatchString(strings.ToLower(s))
+}
+
+// ============================================================================
+// JSON string field extraction
+// ============================================================================
+
+// unescapeJSONString unescapes a JSON string value extracted as raw text.
+func unescapeJSONString(raw string) string {
+	if !strings.ContainsRune(raw, '\\') {
+		return raw
+	}
+
+	var result string
+	err := json.Unmarshal([]byte(`"`+raw+`"`), &result)
+	if err != nil {
+		return raw
+	}
+	return result
+}
+
+// extractJSONStringField extracts a simple JSON string field value without full parsing.
+func extractJSONStringField(text, key string) string {
+	patterns := []string{
+		fmt.Sprintf(`"%s":"`, key),
+		fmt.Sprintf(`"%s": "`, key),
+	}
+
+	for _, pattern := range patterns {
+		idx := strings.Index(text, pattern)
+		if idx < 0 {
+			continue
+		}
+
+		valueStart := idx + len(pattern)
+		i := valueStart
+		for i < len(text) {
+			if text[i] == '\\' {
+				i += 2
+				continue
+			}
+			if text[i] == '"' {
+				return unescapeJSONString(text[valueStart:i])
+			}
+			i++
+		}
+	}
+	return ""
+}
+
+// extractLastJSONStringField extracts the LAST occurrence of a JSON string field.
+func extractLastJSONStringField(text, key string) string {
+	patterns := []string{
+		fmt.Sprintf(`"%s":"`, key),
+		fmt.Sprintf(`"%s": "`, key),
+	}
+
+	var lastValue string
+	for _, pattern := range patterns {
+		searchFrom := 0
+		for {
+			idx := strings.Index(text[searchFrom:], pattern)
+			if idx < 0 {
+				break
+			}
+			idx += searchFrom
+
+			valueStart := idx + len(pattern)
+			i := valueStart
+			for i < len(text) {
+				if text[i] == '\\' {
+					i += 2
+					continue
+				}
+				if text[i] == '"' {
+					lastValue = unescapeJSONString(text[valueStart:i])
+					break
+				}
+				i++
+			}
+			searchFrom = i + 1
+		}
+	}
+	return lastValue
+}
+
+// ============================================================================
+// First prompt extraction
+// ============================================================================
+
+// extractFirstPromptFromHead extracts the first meaningful user prompt from a JSONL head chunk.
+func extractFirstPromptFromHead(head string) string {
+	scanner := bufio.NewScanner(strings.NewReader(head))
+	var commandFallback string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		// Check for user message
+		if !strings.Contains(line, `"type":"user"`) && !strings.Contains(line, `"type": "user"`) {
+			continue
+		}
+		if strings.Contains(line, `"tool_result"`) {
+			continue
+		}
+		if strings.Contains(line, `"isMeta":true`) || strings.Contains(line, `"isMeta": true`) {
+			continue
+		}
+		if strings.Contains(line, `"isCompactSummary":true`) || strings.Contains(line, `"isCompactSummary": true`) {
+			continue
+		}
+
+		var entry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+
+		if entryType, ok := entry["type"].(string); !ok || entryType != "user" {
+			continue
+		}
+
+		message, ok := entry["message"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		var texts []string
+		switch content := message["content"].(type) {
+		case string:
+			texts = append(texts, content)
+		case []interface{}:
+			for _, block := range content {
+				if b, ok := block.(map[string]interface{}); ok {
+					if t, ok := b["type"].(string); ok && t == "text" {
+						if text, ok := b["text"].(string); ok {
+							texts = append(texts, text)
+						}
+					}
+				}
+			}
+		}
+
+		for _, raw := range texts {
+			result := strings.ReplaceAll(strings.TrimSpace(raw), "\n", " ")
+			if result == "" {
+				continue
+			}
+
+			// Skip slash-command messages but remember first as fallback
+			if cmdMatch := commandNameRegex.FindStringSubmatch(result); cmdMatch != nil {
+				if commandFallback == "" {
+					commandFallback = cmdMatch[1]
+				}
+				continue
+			}
+
+			if skipFirstPromptPattern.MatchString(result) {
+				continue
+			}
+
+			if utf8.RuneCountInString(result) > 200 {
+				result = string([]rune(result)[:200]) + "…"
+			}
+			return result
+		}
+	}
+
+	if commandFallback != "" {
+		return commandFallback
+	}
+	return ""
+}
+
+// ============================================================================
+// File I/O
+// ============================================================================
+
+// liteSessionFile holds the result of reading a session file's head, tail, mtime and size.
+type liteSessionFile struct {
+	mtime int64
+	size  int64
+	head  string
+	tail  string
+}
+
+// readSessionLite opens a session file, stats it, and reads head + tail.
+func readSessionLite(filePath string) *liteSessionFile {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil
+	}
+
+	size := stat.Size()
+	mtime := stat.ModTime().UnixMilli()
+
+	// Read head
+	headBuf := make([]byte, LiteReadBufSize)
+	n, err := f.Read(headBuf)
+	if err != nil || n == 0 {
+		return nil
+	}
+	head := string(headBuf[:n])
+
+	// Read tail
+	var tail string
+	tailOffset := size - LiteReadBufSize
+	if tailOffset <= 0 {
+		tail = head
+	} else {
+		_, err = f.Seek(tailOffset, 0)
+		if err != nil {
+			return nil
+		}
+		tailBuf := make([]byte, LiteReadBufSize)
+		n, err = f.Read(tailBuf)
+		if err != nil {
+			return nil
+		}
+		tail = string(tailBuf[:n])
+	}
+
+	return &liteSessionFile{
+		mtime: mtime,
+		size:  size,
+		head:  head,
+		tail:  tail,
+	}
+}
+
+// ============================================================================
+// Git worktree detection
+// ============================================================================
+
+// getWorktreePaths returns absolute worktree paths for the git repo containing cwd.
+func getWorktreePaths(cwd string) []string {
+	ctx, cancel := createCommandContext()
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "worktree", "list", "--porcelain")
+	cmd.Dir = cwd
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var paths []string
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.HasPrefix(line, "worktree ") {
+			path := normalizePath(strings.TrimPrefix(line, "worktree "))
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+// createCommandContext creates a context with timeout for command execution.
+func createCommandContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 5*time.Second)
+}
+
+// ============================================================================
+// Core implementation
+// ============================================================================
+
+// readSessionsFromDir reads session files from a single project directory.
+func readSessionsFromDir(projectDir, projectPath string) []types.SDKSessionInfo {
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return nil
+	}
+
+	var results []types.SDKSessionInfo
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".jsonl") {
+			continue
+		}
+
+		sessionID := strings.TrimSuffix(name, ".jsonl")
+		if !isValidUUID(sessionID) {
+			continue
+		}
+
+		filePath := filepath.Join(projectDir, name)
+		lite := readSessionLite(filePath)
+		if lite == nil {
+			continue
+		}
+
+		// Check first line for sidechain sessions
+		firstLine := lite.head
+		if idx := strings.Index(lite.head, "\n"); idx >= 0 {
+			firstLine = lite.head[:idx]
+		}
+		if strings.Contains(firstLine, `"isSidechain":true`) ||
+			strings.Contains(firstLine, `"isSidechain": true`) {
+			continue
+		}
+
+		customTitle := extractLastJSONStringField(lite.tail, "customTitle")
+		firstPrompt := extractFirstPromptFromHead(lite.head)
+
+		summary := customTitle
+		if summary == "" {
+			summary = extractLastJSONStringField(lite.tail, "summary")
+		}
+		if summary == "" {
+			summary = firstPrompt
+		}
+
+		// Skip metadata-only sessions
+		if summary == "" {
+			continue
+		}
+
+		gitBranch := extractLastJSONStringField(lite.tail, "gitBranch")
+		if gitBranch == "" {
+			gitBranch = extractJSONStringField(lite.head, "gitBranch")
+		}
+
+		sessionCWD := extractJSONStringField(lite.head, "cwd")
+		if sessionCWD == "" {
+			sessionCWD = projectPath
+		}
+
+		info := types.SDKSessionInfo{
+			SessionID:    sessionID,
+			Summary:      summary,
+			LastModified: lite.mtime,
+			FileSize:     lite.size,
+		}
+
+		if customTitle != "" {
+			info.CustomTitle = &customTitle
+		}
+		if firstPrompt != "" {
+			info.FirstPrompt = &firstPrompt
+		}
+		if gitBranch != "" {
+			info.GitBranch = &gitBranch
+		}
+		if sessionCWD != "" {
+			info.CWD = &sessionCWD
+		}
+
+		results = append(results, info)
+	}
+
+	return results
+}
+
+// deduplicateBySessionID deduplicates sessions by session_id, keeping the newest.
+func deduplicateBySessionID(sessions []types.SDKSessionInfo) []types.SDKSessionInfo {
+	byID := make(map[string]types.SDKSessionInfo)
+	for _, s := range sessions {
+		existing, exists := byID[s.SessionID]
+		if !exists || s.LastModified > existing.LastModified {
+			byID[s.SessionID] = s
+		}
+	}
+
+	result := make([]types.SDKSessionInfo, 0, len(byID))
+	for _, s := range byID {
+		result = append(result, s)
+	}
+	return result
+}
+
+// applySortAndLimit sorts sessions by last_modified descending and applies limit.
+func applySortAndLimit(sessions []types.SDKSessionInfo, limit int) []types.SDKSessionInfo {
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].LastModified > sessions[j].LastModified
+	})
+
+	if limit > 0 && limit < len(sessions) {
+		return sessions[:limit]
+	}
+	return sessions
+}
+
+// listSessionsForProject lists sessions for a specific project directory.
+func listSessionsForProject(directory string, limit int, includeWorktrees bool) ([]types.SDKSessionInfo, error) {
+	canonicalDir := normalizePath(directory)
+
+	var worktreePaths []string
+	if includeWorktrees {
+		worktreePaths = getWorktreePaths(canonicalDir)
+	}
+
+	// No worktrees - just scan the single project dir
+	if len(worktreePaths) <= 1 {
+		projectDir := findProjectDir(canonicalDir)
+		if projectDir == "" {
+			return nil, nil
+		}
+		sessions := readSessionsFromDir(projectDir, canonicalDir)
+		return applySortAndLimit(sessions, limit), nil
+	}
+
+	// Worktree-aware scanning
+	projectsDir := getProjectsDir()
+	caseInsensitive := runtime.GOOS == "windows"
+
+	// Sort worktree paths by sanitized prefix length (longest first)
+	type indexedWorktree struct {
+		path   string
+		prefix string
+	}
+	var indexed []indexedWorktree
+	for _, wt := range worktreePaths {
+		sanitized := sanitizePath(wt)
+		prefix := sanitized
+		if caseInsensitive {
+			prefix = strings.ToLower(sanitized)
+		}
+		indexed = append(indexed, indexedWorktree{path: wt, prefix: prefix})
+	}
+	sort.Slice(indexed, func(i, j int) bool {
+		return len(indexed[i].prefix) > len(indexed[j].prefix)
+	})
+
+	allDirents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		// Fall back to single project dir
+		projectDir := findProjectDir(canonicalDir)
+		if projectDir == "" {
+			return nil, nil
+		}
+		sessions := readSessionsFromDir(projectDir, canonicalDir)
+		return applySortAndLimit(sessions, limit), nil
+	}
+
+	var allSessions []types.SDKSessionInfo
+	seenDirs := make(map[string]bool)
+
+	// Always include the user's actual directory
+	canonicalProjectDir := findProjectDir(canonicalDir)
+	if canonicalProjectDir != "" {
+		dirBase := filepath.Base(canonicalProjectDir)
+		if caseInsensitive {
+			dirBase = strings.ToLower(dirBase)
+		}
+		seenDirs[dirBase] = true
+		sessions := readSessionsFromDir(canonicalProjectDir, canonicalDir)
+		allSessions = append(allSessions, sessions...)
+	}
+
+	for _, entry := range allDirents {
+		if !entry.IsDir() {
+			continue
+		}
+
+		dirName := entry.Name()
+		if caseInsensitive {
+			dirName = strings.ToLower(dirName)
+		}
+		if seenDirs[dirName] {
+			continue
+		}
+
+		for _, idx := range indexed {
+			prefix := idx.prefix
+			if caseInsensitive {
+				prefix = strings.ToLower(prefix)
+			}
+
+			// Match exact or prefix with hash suffix
+			isMatch := dirName == prefix ||
+				(len(prefix) >= MaxSanitizedLength && strings.HasPrefix(dirName, prefix+"-"))
+
+			if isMatch {
+				seenDirs[dirName] = true
+				sessions := readSessionsFromDir(filepath.Join(projectsDir, entry.Name()), idx.path)
+				allSessions = append(allSessions, sessions...)
+				break
+			}
+		}
+	}
+
+	deduped := deduplicateBySessionID(allSessions)
+	return applySortAndLimit(deduped, limit), nil
+}
+
+// listAllSessions lists sessions across all project directories.
+func listAllSessions(limit int) ([]types.SDKSessionInfo, error) {
+	projectsDir := getProjectsDir()
+
+	projectDirs, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return nil, nil
+	}
+
+	var allSessions []types.SDKSessionInfo
+	for _, projectDir := range projectDirs {
+		if !projectDir.IsDir() {
+			continue
+		}
+		sessions := readSessionsFromDir(filepath.Join(projectsDir, projectDir.Name()), "")
+		allSessions = append(allSessions, sessions...)
+	}
+
+	deduped := deduplicateBySessionID(allSessions)
+	return applySortAndLimit(deduped, limit), nil
+}
+
+// ============================================================================
+// GetSessionMessages implementation
+// ============================================================================
+
+// transcriptEntryTypes are the types that carry uuid + parentUuid chain links.
+var transcriptEntryTypes = map[string]bool{
+	"user":       true,
+	"assistant":  true,
+	"progress":   true,
+	"system":     true,
+	"attachment": true,
+}
+
+// transcriptEntry represents a parsed JSONL transcript entry.
+type transcriptEntry map[string]interface{}
+
+// readSessionFile finds and reads the session JSONL file.
+func readSessionFile(sessionID, directory string) (string, error) {
+	fileName := sessionID + ".jsonl"
+
+	if directory != "" {
+		canonicalDir := normalizePath(directory)
+
+		// Try the exact/prefix-matched project directory first
+		projectDir := findProjectDir(canonicalDir)
+		if projectDir != "" {
+			content, err := os.ReadFile(filepath.Join(projectDir, fileName))
+			if err == nil {
+				return string(content), nil
+			}
+		}
+
+		// Try worktree paths
+		worktreePaths := getWorktreePaths(canonicalDir)
+		for _, wt := range worktreePaths {
+			if wt == canonicalDir {
+				continue
+			}
+			wtProjectDir := findProjectDir(wt)
+			if wtProjectDir != "" {
+				content, err := os.ReadFile(filepath.Join(wtProjectDir, fileName))
+				if err == nil {
+					return string(content), nil
+				}
+			}
+		}
+
+		return "", os.ErrNotExist
+	}
+
+	// No directory provided - search all project directories
+	projectsDir := getProjectsDir()
+	dirents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return "", err
+	}
+
+	for _, entry := range dirents {
+		content, err := os.ReadFile(filepath.Join(projectsDir, entry.Name(), fileName))
+		if err == nil {
+			return string(content), nil
+		}
+	}
+
+	return "", os.ErrNotExist
+}
+
+// parseTranscriptEntries parses JSONL content into transcript entries.
+func parseTranscriptEntries(content string) []transcriptEntry {
+	var entries []transcriptEntry
+
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var entry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+
+		entryType, ok := entry["type"].(string)
+		if !ok || !transcriptEntryTypes[entryType] {
+			continue
+		}
+
+		if _, ok := entry["uuid"].(string); ok {
+			entries = append(entries, entry)
+		}
+	}
+
+	return entries
+}
+
+// buildConversationChain builds the conversation chain by finding the leaf and walking parentUuid.
+func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	// Index by uuid for O(1) parent lookup
+	byUUID := make(map[string]transcriptEntry)
+	entryIndex := make(map[string]int)
+	for i, entry := range entries {
+		uuid, _ := entry["uuid"].(string)
+		byUUID[uuid] = entry
+		entryIndex[uuid] = i
+	}
+
+	// Find terminal messages (no children point to them via parentUuid)
+	parentUUIDs := make(map[string]bool)
+	for _, entry := range entries {
+		if parent, ok := entry["parentUuid"].(string); ok && parent != "" {
+			parentUUIDs[parent] = true
+		}
+	}
+
+	var terminals []transcriptEntry
+	for _, entry := range entries {
+		uuid := entry["uuid"].(string)
+		if !parentUUIDs[uuid] {
+			terminals = append(terminals, entry)
+		}
+	}
+
+	// From each terminal, walk back to find the nearest user/assistant leaf
+	var leaves []transcriptEntry
+	for _, terminal := range terminals {
+		cur := terminal
+		seen := make(map[string]bool)
+
+		for {
+			uuid := cur["uuid"].(string)
+			if seen[uuid] {
+				break
+			}
+			seen[uuid] = true
+
+			if entryType, ok := cur["type"].(string); ok && (entryType == "user" || entryType == "assistant") {
+				leaves = append(leaves, cur)
+				break
+			}
+
+			parent, ok := cur["parentUuid"].(string)
+			if !ok || parent == "" {
+				break
+			}
+			cur = byUUID[parent]
+			if cur == nil {
+				break
+			}
+		}
+	}
+
+	if len(leaves) == 0 {
+		return nil
+	}
+
+	// Pick the leaf from the main chain (not sidechain/team/meta)
+	var mainLeaves []transcriptEntry
+	for _, leaf := range leaves {
+		if leaf["isSidechain"] == true {
+			continue
+		}
+		if leaf["teamName"] != nil {
+			continue
+		}
+		if leaf["isMeta"] == true {
+			continue
+		}
+		mainLeaves = append(mainLeaves, leaf)
+	}
+
+	candidates := mainLeaves
+	if len(candidates) == 0 {
+		candidates = leaves
+	}
+
+	// Pick the one with highest position in entries array
+	best := candidates[0]
+	bestIdx := entryIndex[best["uuid"].(string)]
+	for _, cur := range candidates[1:] {
+		curIdx := entryIndex[cur["uuid"].(string)]
+		if curIdx > bestIdx {
+			best = cur
+			bestIdx = curIdx
+		}
+	}
+
+	// Walk from leaf to root via parentUuid
+	var chain []transcriptEntry
+	chainSeen := make(map[string]bool)
+	cur := best
+
+	for cur != nil {
+		uuid := cur["uuid"].(string)
+		if chainSeen[uuid] {
+			break
+		}
+		chainSeen[uuid] = true
+		chain = append(chain, cur)
+
+		parent, ok := cur["parentUuid"].(string)
+		if !ok || parent == "" {
+			break
+		}
+		cur = byUUID[parent]
+	}
+
+	// Reverse to get chronological order
+	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+		chain[i], chain[j] = chain[j], chain[i]
+	}
+
+	return chain
+}
+
+// filterVisibleMessages filters to visible user/assistant messages.
+func filterVisibleMessages(entries []transcriptEntry) []transcriptEntry {
+	var visible []transcriptEntry
+	for _, entry := range entries {
+		entryType, ok := entry["type"].(string)
+		if !ok {
+			continue
+		}
+		if entryType != "user" && entryType != "assistant" {
+			continue
+		}
+		if entry["isMeta"] == true {
+			continue
+		}
+		if entry["isSidechain"] == true {
+			continue
+		}
+		if entry["teamName"] != nil {
+			continue
+		}
+		visible = append(visible, entry)
+	}
+	return visible
+}
+
+// convertToSessionMessages converts transcript entries to SessionMessage objects.
+func convertToSessionMessages(entries []transcriptEntry) []types.SessionMessage {
+	var messages []types.SessionMessage
+	for _, entry := range entries {
+		msgType, _ := entry["type"].(string)
+		uuid, _ := entry["uuid"].(string)
+		sessionID, _ := entry["sessionId"].(string)
+		message := entry["message"]
+
+		messages = append(messages, types.SessionMessage{
+			Type:      msgType,
+			UUID:      uuid,
+			SessionID: sessionID,
+			Message:   message,
+		})
+	}
+	return messages
+}

@@ -238,15 +238,21 @@ type BaseHookInput struct {
 }
 
 // PreToolUseHookInput represents input data for PreToolUse hook events.
+// AgentID and AgentType are present when the hook fires from inside a Task-spawned
+// sub-agent. They match the agent_id emitted by that sub-agent's SubagentStart/SubagentStop hooks.
 type PreToolUseHookInput struct {
 	BaseHookInput
 	HookEventName string                 `json:"hook_event_name"` // Always "PreToolUse"
 	ToolName      string                 `json:"tool_name"`
 	ToolInput     map[string]interface{} `json:"tool_input"`
 	ToolUseID     string                 `json:"tool_use_id"`
+	AgentID       *string                `json:"agent_id,omitempty"`   // Present inside sub-agent
+	AgentType     *string                `json:"agent_type,omitempty"` // Agent type name
 }
 
 // PostToolUseHookInput represents input data for PostToolUse hook events.
+// AgentID and AgentType are present when the hook fires from inside a Task-spawned
+// sub-agent. They match the agent_id emitted by that sub-agent's SubagentStart/SubagentStop hooks.
 type PostToolUseHookInput struct {
 	BaseHookInput
 	HookEventName string                 `json:"hook_event_name"` // Always "PostToolUse"
@@ -254,9 +260,13 @@ type PostToolUseHookInput struct {
 	ToolInput     map[string]interface{} `json:"tool_input"`
 	ToolResponse  interface{}            `json:"tool_response"`
 	ToolUseID     string                 `json:"tool_use_id"`
+	AgentID       *string                `json:"agent_id,omitempty"`   // Present inside sub-agent
+	AgentType     *string                `json:"agent_type,omitempty"` // Agent type name
 }
 
 // PostToolUseFailureHookInput represents input data for PostToolUseFailure hook events.
+// AgentID and AgentType are present when the hook fires from inside a Task-spawned
+// sub-agent. They match the agent_id emitted by that sub-agent's SubagentStart/SubagentStop hooks.
 type PostToolUseFailureHookInput struct {
 	BaseHookInput
 	HookEventName string                 `json:"hook_event_name"` // Always "PostToolUseFailure"
@@ -265,6 +275,8 @@ type PostToolUseFailureHookInput struct {
 	ToolUseID     string                 `json:"tool_use_id"`
 	Error         string                 `json:"error"`
 	IsInterrupt   *bool                  `json:"is_interrupt,omitempty"`
+	AgentID       *string                `json:"agent_id,omitempty"`   // Present inside sub-agent
+	AgentType     *string                `json:"agent_type,omitempty"` // Agent type name
 }
 
 // UserPromptSubmitHookInput represents input data for UserPromptSubmit hook events.
@@ -317,12 +329,16 @@ type SubagentStartHookInput struct {
 }
 
 // PermissionRequestHookInput represents input data for PermissionRequest hook events.
+// AgentID and AgentType are present when the hook fires from inside a Task-spawned
+// sub-agent. They match the agent_id emitted by that sub-agent's SubagentStart/SubagentStop hooks.
 type PermissionRequestHookInput struct {
 	BaseHookInput
 	HookEventName         string                 `json:"hook_event_name"` // Always "PermissionRequest"
 	ToolName              string                 `json:"tool_name"`
 	ToolInput             map[string]interface{} `json:"tool_input"`
 	PermissionSuggestions []interface{}          `json:"permission_suggestions,omitempty"`
+	AgentID               *string                `json:"agent_id,omitempty"`   // Present inside sub-agent
+	AgentType             *string                `json:"agent_type,omitempty"` // Agent type name
 }
 
 // SessionStartHookInput represents input data for SessionStart hook events.
@@ -1415,4 +1431,53 @@ type QueryResult struct {
 
 	// TotalCostUSD is the total cost in USD (alias for CostUSD for compatibility).
 	TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
+}
+
+// ============================================================================
+// Session Types (v0.1.46)
+// ============================================================================
+
+// SDKSessionInfo represents session metadata returned by ListSessions.
+type SDKSessionInfo struct {
+	// SessionID is the unique session identifier (UUID).
+	SessionID string `json:"session_id"`
+
+	// Summary is the display title for the session.
+	Summary string `json:"summary"`
+
+	// LastModified is the last modified time in milliseconds since epoch.
+	LastModified int64 `json:"last_modified"`
+
+	// FileSize is the session file size in bytes.
+	FileSize int64 `json:"file_size"`
+
+	// CustomTitle is the user-set session title via /rename.
+	CustomTitle *string `json:"custom_title,omitempty"`
+
+	// FirstPrompt is the first meaningful user prompt in the session.
+	FirstPrompt *string `json:"first_prompt,omitempty"`
+
+	// GitBranch is the git branch at the end of the session.
+	GitBranch *string `json:"git_branch,omitempty"`
+
+	// CWD is the working directory for the session.
+	CWD *string `json:"cwd,omitempty"`
+}
+
+// SessionMessage represents a user or assistant message from a session transcript.
+type SessionMessage struct {
+	// Type is the message type - "user" or "assistant".
+	Type string `json:"type"`
+
+	// UUID is the unique message identifier.
+	UUID string `json:"uuid"`
+
+	// SessionID is the ID of the session this message belongs to.
+	SessionID string `json:"session_id"`
+
+	// Message is the raw Anthropic API message dict.
+	Message interface{} `json:"message"`
+
+	// ParentToolUseID is always nil for top-level conversation messages.
+	ParentToolUseID *string `json:"parent_tool_use_id,omitempty"`
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/unitsvc/claude-agent-sdk-golang/client"
 	sdkerrors "github.com/unitsvc/claude-agent-sdk-golang/errors"
+	"github.com/unitsvc/claude-agent-sdk-golang/internal/sessions"
 	"github.com/unitsvc/claude-agent-sdk-golang/query"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
@@ -143,6 +144,10 @@ type (
 
 	// Agent types
 	AgentDefinition = types.AgentDefinition
+
+	// Session types (v0.1.46)
+	SDKSessionInfo = types.SDKSessionInfo
+	SessionMessage = types.SessionMessage
 )
 
 // Client is an alias for the client type.
@@ -174,3 +179,41 @@ type CLIError = sdkerrors.CLIError
 
 // ToolExecutionError represents an error during tool execution.
 type ToolExecutionError = sdkerrors.ToolExecutionError
+
+// ============================================================================
+// Sessions API (v0.1.46)
+// ============================================================================
+
+// ListSessions lists sessions with metadata extracted from stat + head/tail reads.
+//
+// When directory is provided, returns sessions for that project directory and its
+// git worktrees. When empty, returns sessions across all projects.
+//
+// The limit parameter limits the number of sessions returned (0 means no limit).
+// The includeWorktrees parameter controls whether to include git worktree sessions.
+//
+// Example:
+//
+//	// List sessions for current directory
+//	sessions, err := claude.ListSessions("/path/to/project", 10, true)
+//
+//	// List all sessions
+//	sessions, err := claude.ListSessions("", 0, false)
+func ListSessions(directory string, limit int, includeWorktrees bool) ([]types.SDKSessionInfo, error) {
+	return sessions.ListSessions(directory, limit, includeWorktrees)
+}
+
+// GetSessionMessages reads a session's conversation messages from its JSONL transcript file.
+//
+// Parses the full JSONL, builds the conversation chain via parentUuid links,
+// and returns user/assistant messages in chronological order.
+//
+// The limit parameter limits the number of messages returned (0 means no limit).
+// The offset parameter skips the first N messages.
+//
+// Example:
+//
+//	messages, err := claude.GetSessionMessages("550e8400-e29b-41d4-a716-446655440000", "/path/to/project", 10, 0)
+func GetSessionMessages(sessionID, directory string, limit, offset int) ([]types.SessionMessage, error) {
+	return sessions.GetSessionMessages(sessionID, directory, limit, offset)
+}
