@@ -65,8 +65,8 @@ func TestSdkMcpToolActualExecution(t *testing.T) {
 	}
 
 	// Collect messages
-	var foundResult bool
 	var resultMsg *types.ResultMessage
+messageLoop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -86,16 +86,13 @@ func TestSdkMcpToolActualExecution(t *testing.T) {
 					}
 				}
 			case *types.ResultMessage:
-				foundResult = true
 				resultMsg = m
 				// Drain remaining
 				go func() {
 					for range msgChan {
 					}
 				}()
-			}
-			if foundResult {
-				break
+				break messageLoop
 			}
 		}
 	}

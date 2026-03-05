@@ -149,7 +149,7 @@ func TestMultipleSDKMCPServers(t *testing.T) {
 	}, func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
 		a, _ := args["a"].(float64)
 		b, _ := args["b"].(float64)
-		return sdkmcp.TextResult(string(rune(int(a + b) + '0'))), nil
+		return sdkmcp.TextResult(string(rune(int(a+b) + '0'))), nil
 	})
 
 	server1 := sdkmcp.CreateSdkMcpServer("math", []*sdkmcp.SdkMcpTool{addTool})
