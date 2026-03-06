@@ -216,6 +216,16 @@ func (q *Query) Start(ctx context.Context) error {
 // readMessages reads messages from transport and routes them.
 func (q *Query) readMessages() {
 	defer q.wg.Done()
+	// Unblock any waiters (e.g. string-prompt path waiting for first
+	// result) so they don't stall for the full timeout on early exit.
+	defer func() {
+		select {
+		case <-q.firstResultEvent:
+			// Already closed
+		default:
+			close(q.firstResultEvent)
+		}
+	}()
 
 	msgChan := q.transport.ReadMessages(q.ctx)
 

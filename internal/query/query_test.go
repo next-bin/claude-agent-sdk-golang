@@ -2126,3 +2126,77 @@ func TestToolPermissionCallbackMissing(t *testing.T) {
 		t.Errorf("expected error response, got %v", response["subtype"])
 	}
 }
+
+// TestFirstResultEventSetOnEarlyExit tests that firstResultEvent is set when
+// readMessages exits early (e.g., due to context cancellation), matching
+// Python SDK's finally block behavior.
+func TestFirstResultEventSetOnEarlyExit(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	// Create hooks to trigger bidirectional mode
+	hooks := map[string][]HookMatcher{
+		"PreToolUse": {{Matcher: "Bash", Hooks: []HookCallbackFunc{func(ctx context.Context, input interface{}, toolUseID *string, context types.HookContext) (map[string]interface{}, error) {
+			return map[string]interface{}{}, nil
+		}}}},
+	}
+
+	q := NewQuery(mockTransport, true, nil, hooks, nil, 30*time.Second, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = q.Start(ctx)
+
+	// Create input stream
+	inputChan := make(chan map[string]interface{})
+
+	var streamErr error
+	done := make(chan struct{})
+
+	go func() {
+		streamErr = q.StreamInput(ctx, inputChan)
+		close(done)
+	}()
+
+	// Cancel context before sending any result message
+	// This simulates early exit
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	// Close input
+	close(inputChan)
+
+	select {
+	case <-done:
+		// Stream finished - this means firstResultEvent was set by the defer
+		// in readMessages, allowing finishInputStream to proceed
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for stream to finish - firstResultEvent may not have been set on early exit")
+	}
+
+	if streamErr != nil && streamErr != context.Canceled {
+		t.Errorf("unexpected error: %v", streamErr)
+	}
+
+	_ = q.Close(context.Background())
+}
+
+// TestFirstResultEventNotDoubleClose tests that closing firstResultEvent twice
+// doesn't cause a panic.
+func TestFirstResultEventNotDoubleClose(t *testing.T) {
+	mockTransport := newMockTransport()
+
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	_ = q.Start(ctx)
+
+	// Send a result message first (this closes firstResultEvent)
+	mockTransport.sendMessage(map[string]interface{}{"type": "result", "subtype": "success"})
+	time.Sleep(50 * time.Millisecond)
+
+	// Now close the query - this should trigger the defer in readMessages
+	// which tries to close firstResultEvent again, but should handle it gracefully
+	err := q.Close(ctx)
+	if err != nil {
+		t.Errorf("unexpected error on close: %v", err)
+	}
+}
