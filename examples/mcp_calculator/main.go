@@ -23,8 +23,8 @@ import (
 	"math"
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
 	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
+	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
