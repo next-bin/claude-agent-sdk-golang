@@ -6,12 +6,11 @@ package query
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
@@ -28,6 +27,10 @@ type Transport interface {
 	// Close closes the transport and releases resources.
 	Close(ctx context.Context) error
 }
+
+// globalRequestCounter is a global atomic counter for generating unique request IDs.
+// This avoids allocating memory for random bytes on each request.
+var globalRequestCounter uint64
 
 // CanUseToolCallback is the callback function type for tool permission requests.
 type CanUseToolCallback func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error)
@@ -80,6 +83,10 @@ type Query struct {
 	// Message stream
 	messageSend    chan map[string]interface{}
 	messageReceive chan map[string]interface{}
+
+	// Cached message channel for ReceiveMessages
+	messageChan     chan map[string]interface{}
+	messageChanOnce bool
 
 	// Lifecycle state
 	initialized          bool
@@ -558,17 +565,10 @@ func (q *Query) sendControlRequest(ctx context.Context, request map[string]inter
 		return nil, fmt.Errorf("control requests require streaming mode")
 	}
 
-	// Generate unique request ID
-	q.mu.Lock()
-	q.requestCounter++
-	counter := q.requestCounter
-	q.mu.Unlock()
-
-	randomBytes := make([]byte, 4)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return nil, fmt.Errorf("failed to generate random bytes: %w", err)
-	}
-	requestID := fmt.Sprintf("req_%d_%s", counter, hex.EncodeToString(randomBytes))
+	// Generate unique request ID using atomic counter + timestamp
+	// This avoids memory allocation for random bytes
+	counter := atomic.AddUint64(&globalRequestCounter, 1)
+	requestID := fmt.Sprintf("req_%d_%d", time.Now().UnixNano(), counter)
 
 	// Create channel for response
 	done := make(chan struct{})
@@ -743,8 +743,16 @@ func (q *Query) finishInputStream(ctx context.Context) error {
 }
 
 // ReceiveMessages returns a channel for receiving SDK messages (not control messages).
+// The channel is cached to avoid creating multiple goroutines when called repeatedly.
 func (q *Query) ReceiveMessages(ctx context.Context) <-chan map[string]interface{} {
+	// Return cached channel if available
+	if q.messageChanOnce && q.messageChan != nil {
+		return q.messageChan
+	}
+
 	output := make(chan map[string]interface{})
+	q.messageChan = output
+	q.messageChanOnce = true
 
 	go func() {
 		defer close(output)

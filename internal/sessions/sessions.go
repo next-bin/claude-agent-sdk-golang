@@ -313,6 +313,53 @@ func extractLastJSONStringField(text, key string) string {
 // First prompt extraction
 // ============================================================================
 
+// processPromptText trims whitespace and replaces newlines with spaces in a single pass.
+// This is more efficient than calling strings.TrimSpace and strings.ReplaceAll separately.
+func processPromptText(s string) string {
+	// Fast path: empty string
+	if len(s) == 0 {
+		return ""
+	}
+
+	// Use strings.Builder for efficient string building
+	var b strings.Builder
+	b.Grow(len(s))
+
+	// Track if we're at the start (for trimming leading whitespace)
+	start := true
+	// Track if previous char was a space (for collapsing multiple spaces)
+	prevSpace := false
+
+	for _, r := range s {
+		if r == '\n' || r == '\r' {
+			// Replace newlines with space
+			if !start && !prevSpace {
+				b.WriteRune(' ')
+				prevSpace = true
+			}
+		} else if r == ' ' || r == '\t' {
+			// Collapse multiple spaces/tabs
+			if !start && !prevSpace {
+				b.WriteRune(' ')
+				prevSpace = true
+			}
+		} else {
+			// Regular character
+			b.WriteRune(r)
+			start = false
+			prevSpace = false
+		}
+	}
+
+	// Trim trailing space
+	result := b.String()
+	if len(result) > 0 && result[len(result)-1] == ' ' {
+		result = result[:len(result)-1]
+	}
+
+	return result
+}
+
 // extractFirstPromptFromHead extracts the first meaningful user prompt from a JSONL head chunk.
 func extractFirstPromptFromHead(head string) string {
 	scanner := bufio.NewScanner(strings.NewReader(head))
@@ -352,11 +399,13 @@ func extractFirstPromptFromHead(head string) string {
 			continue
 		}
 
+		// Pre-allocate texts slice with reasonable capacity
 		var texts []string
 		switch content := message["content"].(type) {
 		case string:
-			texts = append(texts, content)
+			texts = []string{content}
 		case []interface{}:
+			texts = make([]string, 0, len(content))
 			for _, block := range content {
 				if b, ok := block.(map[string]interface{}); ok {
 					if t, ok := b["type"].(string); ok && t == "text" {
@@ -369,7 +418,8 @@ func extractFirstPromptFromHead(head string) string {
 		}
 
 		for _, raw := range texts {
-			result := strings.ReplaceAll(strings.TrimSpace(raw), "\n", " ")
+			// Optimize string processing: trim and replace newlines in one pass
+			result := processPromptText(raw)
 			if result == "" {
 				continue
 			}

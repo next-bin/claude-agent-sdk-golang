@@ -86,6 +86,10 @@ type SubprocessCLITransport struct {
 	writeLock sync.Mutex
 	closeOnce sync.Once
 
+	// Context for goroutine cancellation
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// Channels
 	messageChan chan map[string]interface{}
 	errorChan   chan error
@@ -556,6 +560,9 @@ func (t *SubprocessCLITransport) Connect(ctx context.Context) error {
 		return nil
 	}
 
+	// Create cancellable context for goroutine lifecycle management
+	t.ctx, t.cancel = context.WithCancel(context.Background())
+
 	// Check CLI version unless skipped
 	if !t.skipVersionCheck && os.Getenv("CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK") == "" {
 		if err := t.checkClaudeVersion(ctx); err != nil {
@@ -673,6 +680,13 @@ func (t *SubprocessCLITransport) handleStderr() {
 
 	scanner := bufio.NewScanner(t.stderrReader)
 	for scanner.Scan() {
+		// Check for context cancellation
+		select {
+		case <-t.ctx.Done():
+			return
+		default:
+		}
+
 		line := scanner.Text()
 		if line == "" {
 			continue
@@ -707,6 +721,13 @@ func (t *SubprocessCLITransport) readMessagesLoop() {
 	scanner.Buffer(make([]byte, t.maxBufferSize), t.maxBufferSize)
 
 	for scanner.Scan() {
+		// Check for context cancellation
+		select {
+		case <-t.ctx.Done():
+			return
+		default:
+		}
+
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
@@ -746,6 +767,9 @@ func (t *SubprocessCLITransport) readMessagesLoop() {
 				jsonBuffer.Reset()
 				select {
 				case t.messageChan <- data:
+				case <-t.ctx.Done():
+					// Context cancelled, exit
+					return
 				case <-t.errorChan:
 					// Error channel closed, exit
 					return
@@ -806,6 +830,11 @@ func (t *SubprocessCLITransport) Close(ctx context.Context) error {
 	var err error
 
 	t.closeOnce.Do(func() {
+		// Cancel context to signal goroutines to stop
+		if t.cancel != nil {
+			t.cancel()
+		}
+
 		// Set ready to false inside lock to prevent race with write()
 		t.writeLock.Lock()
 		t.ready = false

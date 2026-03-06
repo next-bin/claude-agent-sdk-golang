@@ -242,14 +242,15 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 			}
 		case chan map[string]interface{}:
 			// For channel prompts, stream input in background with proper lifecycle management
-			ctx, cancel := context.WithCancel(context.Background())
-			c.cancel = cancel
+			// Use the provided context to ensure cancellation propagates correctly
+			streamCtx, streamCancel := context.WithCancel(ctx)
+			c.cancel = streamCancel
 			c.wg.Add(1)
 			go func() {
 				defer c.wg.Done()
 				for {
 					select {
-					case <-ctx.Done():
+					case <-streamCtx.Done():
 						return
 					case msg, ok := <-p:
 						if !ok {
@@ -259,7 +260,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 						if err != nil {
 							continue // Skip invalid messages
 						}
-						if err := c.transport.Write(ctx, string(data)+"\n"); err != nil {
+						if err := c.transport.Write(streamCtx, string(data)+"\n"); err != nil {
 							return // Exit on write error
 						}
 					}

@@ -270,7 +270,7 @@ func Schema(properties map[string]interface{}, required []string) map[string]int
 //	    "scores": sdkmcp.ArrayProperty(sdkmcp.NumberProperty(""), ""),
 //	}, []string{"name", "age", "active", "score", "tags", "scores"})
 func SimpleSchema(types map[string]string) map[string]interface{} {
-	properties := make(map[string]interface{})
+	properties := make(map[string]interface{}, len(types))
 	required := make([]string, 0, len(types))
 
 	for name, typeStr := range types {
