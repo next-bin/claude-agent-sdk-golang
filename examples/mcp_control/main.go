@@ -69,9 +69,12 @@ func main() {
 	}
 	fmt.Println("Connected successfully!")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
 	// Initial query
 	fmt.Println("\n=== Initial Query ===")
-	queryAndConsume(ctx, client, "Use the echo tool to say 'Hello, World!'")
+	queryAndConsume(ctx, client, msgChan, "Use the echo tool to say 'Hello, World!'")
 
 	// Get MCP status
 	fmt.Println("\n=== Getting MCP Status ===")
@@ -119,7 +122,7 @@ func main() {
 
 	// Query after control operations
 	fmt.Println("\n=== Query After Control Operations ===")
-	queryAndConsume(ctx, client, "Use the get_time tool to tell me the current time")
+	queryAndConsume(ctx, client, msgChan, "Use the get_time tool to tell me the current time")
 
 	// Demonstrate StopTask (with a fake task ID - will likely fail but shows API usage)
 	fmt.Println("\n=== StopTask Demo ===")
@@ -132,9 +135,8 @@ func main() {
 	fmt.Println("\n=== Example Complete ===")
 }
 
-func queryAndConsume(ctx context.Context, client *claude.Client, prompt string) {
-	msgChan, err := client.Query(ctx, prompt)
-	if err != nil {
+func queryAndConsume(ctx context.Context, client *claude.Client, msgChan <-chan types.Message, prompt string) {
+	if err := client.Query(ctx, prompt); err != nil {
 		fmt.Printf("Query error: %v\n", err)
 		return
 	}

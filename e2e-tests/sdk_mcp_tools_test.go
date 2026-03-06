@@ -57,9 +57,11 @@ func TestSdkMcpToolExecution(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse
+	msgChan := client.ReceiveMessages(ctx)
+
 	// Query
-	msgChan, err := client.Query(ctx, "Use the echo tool to say 'Hello World'")
-	if err != nil {
+	if err := client.Query(ctx, "Use the echo tool to say 'Hello World'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -135,8 +137,8 @@ func TestSdkMcpMultipleTools(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Calculate 5 + 3 and then multiply the result by 2")
-	if err != nil {
+	msgChan := client.ReceiveMessages(ctx)
+	if err := client.Query(ctx, "Calculate 5 + 3 and then multiply the result by 2"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -190,8 +192,8 @@ func TestSdkMcpToolWithError(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Use the fail tool")
-	if err != nil {
+	msgChan := client.ReceiveMessages(ctx)
+	if err := client.Query(ctx, "Use the fail tool"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -254,8 +256,8 @@ func TestSdkMcpImageContent(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Use the get_image tool and describe what you see")
-	if err != nil {
+	msgChan := client.ReceiveMessages(ctx)
+	if err := client.Query(ctx, "Use the get_image tool and describe what you see"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -312,8 +314,8 @@ func TestSdkMcpToolWithAnnotations(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Use the get_info tool")
-	if err != nil {
+	msgChan := client.ReceiveMessages(ctx)
+	if err := client.Query(ctx, "Use the get_info tool"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -387,8 +389,8 @@ func TestSdkMcpPermissionEnforcement(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "You must use the mcp__test__greet tool to greet 'Alice'. This is a test of the greet tool, so please call it.")
-	if err != nil {
+	msgChan := client.ReceiveMessages(ctx)
+	if err := client.Query(ctx, "You must use the mcp__test__greet tool to greet 'Alice'. This is a test of the greet tool, so please call it."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -459,8 +461,8 @@ func TestSdkMcpWithoutPermissions(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Call the mcp__noperm__echo tool")
-	if err != nil {
+	msgChan := client.ReceiveMessages(ctx)
+	if err := client.Query(ctx, "Call the mcp__noperm__echo tool"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

@@ -23,7 +23,8 @@ func TestAgentDefinitionWithInit(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestAgentDefinitionWithInit...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	cfg := DefaultTestConfig()
@@ -45,14 +46,16 @@ func TestAgentDefinitionWithInit(t *testing.T) {
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: What is 2 + 2?")
-	msgChan, err := client.Query(ctx, "What is 2 + 2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -98,7 +101,8 @@ func TestLargeAgents(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestLargeAgents...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	// Generate 20 agents with 13KB prompts each = ~260KB total (matching Python SDK)
@@ -123,14 +127,16 @@ func TestLargeAgents(t *testing.T) {
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: What is 2 + 2?")
-	msgChan, err := client.Query(ctx, "What is 2 + 2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -198,7 +204,8 @@ func TestAgentDefinitionWithQueryFunction(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestAgentDefinitionWithQueryFunction...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	cfg := DefaultTestConfig()
@@ -220,14 +227,16 @@ func TestAgentDefinitionWithQueryFunction(t *testing.T) {
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: What is 2 + 2?")
-	msgChan, err := client.Query(ctx, "What is 2 + 2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -284,7 +293,8 @@ func TestSettingSourcesDefault(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestSettingSourcesDefault...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with local settings
@@ -319,14 +329,16 @@ func TestSettingSourcesDefault(t *testing.T) {
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: What is 2 + 2?")
-	msgChan, err := client.Query(ctx, "What is 2 + 2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -362,7 +374,8 @@ func TestSettingSourcesUserOnly(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestSettingSourcesUserOnly...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with a slash command
@@ -404,14 +417,16 @@ This is a test command.
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: What is 2 + 2?")
-	msgChan, err := client.Query(ctx, "What is 2 + 2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -452,7 +467,8 @@ func TestSettingSourcesProjectIncluded(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestSettingSourcesProjectIncluded...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with local settings
@@ -489,14 +505,16 @@ func TestSettingSourcesProjectIncluded(t *testing.T) {
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: What is 2 + 2?")
-	msgChan, err := client.Query(ctx, "What is 2 + 2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -550,7 +568,8 @@ func TestFilesystemAgentLoading(t *testing.T) {
 	SkipIfNoAPIKey(t)
 	t.Log("Starting TestFilesystemAgentLoading...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	// Create a temporary project with a filesystem agent
@@ -597,14 +616,16 @@ You are a simple test agent. When asked a question, provide a brief, helpful ans
 	defer client.Close()
 
 	t.Log("Connecting to Claude...")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	t.Log("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	t.Log("Sending query: Say hello in exactly 3 words")
-	msgChan, err := client.Query(ctx, "Say hello in exactly 3 words")
-	if err != nil {
+	if err := client.Query(ctx, "Say hello in exactly 3 words"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

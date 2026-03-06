@@ -42,12 +42,14 @@ func main() {
 	// Track task statistics
 	tasks := make(map[string]*TaskInfo)
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
 	// Make a query that might trigger subagent usage
 	fmt.Println("\n=== Running Query ===")
 	fmt.Println("Prompt: List all .go files in the current directory")
 
-	msgChan, err := client.Query(ctx, "List all .go files in the current directory using Bash tool")
-	if err != nil {
+	if err := client.Query(ctx, "List all .go files in the current directory using Bash tool"); err != nil {
 		fmt.Fprintf(os.Stderr, "Query error: %v\n", err)
 		os.Exit(1)
 	}

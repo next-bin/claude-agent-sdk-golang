@@ -19,7 +19,8 @@ func TestSimpleStructuredOutput(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestSimpleStructuredOutput")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestSimpleStructuredOutput")
@@ -46,14 +47,16 @@ func TestSimpleStructuredOutput(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: Count Go files")
-	msgChan, err := client.Query(ctx, "Count how many Go files are in the current directory and check if there are any test files.")
-	if err != nil {
+	if err := client.Query(ctx, "Count how many Go files are in the current directory and check if there are any test files."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -89,7 +92,8 @@ func TestNestedStructuredOutput(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestNestedStructuredOutput")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestNestedStructuredOutput")
@@ -125,14 +129,16 @@ func TestNestedStructuredOutput(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: Analyze text 'Hello world'")
-	msgChan, err := client.Query(ctx, "Analyze this text: 'Hello world'. Provide word count, character count, and list of words.")
-	if err != nil {
+	if err := client.Query(ctx, "Analyze this text: 'Hello world'. Provide word count, character count, and list of words."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -160,7 +166,8 @@ func TestStructuredOutputWithEnum(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestStructuredOutputWithEnum")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestStructuredOutputWithEnum")
@@ -189,14 +196,16 @@ func TestStructuredOutputWithEnum(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query about test framework")
-	msgChan, err := client.Query(ctx, "Check if there are test files in the e2e-tests/ directory and identify the test framework.")
-	if err != nil {
+	if err := client.Query(ctx, "Check if there are test files in the e2e-tests/ directory and identify the test framework."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -224,7 +233,8 @@ func TestStructuredOutputWithTools(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestStructuredOutputWithTools")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestStructuredOutputWithTools")
@@ -250,14 +260,16 @@ func TestStructuredOutputWithTools(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query about files in /tmp")
-	msgChan, err := client.Query(ctx, "Count how many files are in the current directory and check if there's a README file.")
-	if err != nil {
+	if err := client.Query(ctx, "Count how many files are in the current directory and check if there's a README file."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

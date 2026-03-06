@@ -22,7 +22,8 @@ func TestStderrCallbackCapturesDebugOutput(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestStderrCallbackCapturesDebugOutput")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestStderrCallbackCapturesDebugOutput")
@@ -48,14 +49,16 @@ func TestStderrCallbackCapturesDebugOutput(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: What is 1+1?")
-	msgChan, err := client.Query(ctx, "What is 1+1?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 1+1?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -98,7 +101,8 @@ func TestStderrCallbackWithoutDebug(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestStderrCallbackWithoutDebug")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestStderrCallbackWithoutDebug")
@@ -122,14 +126,16 @@ func TestStderrCallbackWithoutDebug(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: What is 1+1?")
-	msgChan, err := client.Query(ctx, "What is 1+1?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 1+1?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -154,7 +160,8 @@ func TestStderrCallbackMultipleQueries(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestStderrCallbackMultipleQueries")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestStderrCallbackMultipleQueries")
@@ -180,15 +187,17 @@ func TestStderrCallbackMultipleQueries(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// First query
 	logger.Step("Sending first query: What is 1+1?")
-	msgChan, err := client.Query(ctx, "What is 1+1?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 1+1?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	count1, foundResult1, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "Query1")
@@ -196,8 +205,7 @@ func TestStderrCallbackMultipleQueries(t *testing.T) {
 
 	// Second query - need to ensure first query is fully complete
 	logger.Step("Sending second query: What is 2+2?")
-	msgChan, err = client.Query(ctx, "What is 2+2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2+2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	count2, foundResult2, _ := ConsumeMessagesVerbose(ctx, t, msgChan, "Query2")

@@ -200,8 +200,10 @@ func runQuery(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions
 		return
 	}
 
-	msgChan, err := client.Query(ctx, prompt)
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
+	if err := client.Query(ctx, prompt); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}

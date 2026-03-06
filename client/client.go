@@ -33,6 +33,10 @@ type Client struct {
 	transport       query.Transport
 	query           *query.Query
 	connected       bool
+
+	// Cached message channel for fan-out to multiple subscribers
+	messageChan     <-chan types.Message
+	messageChanOnce bool
 }
 
 // New creates a new Claude SDK client with default options.
@@ -523,8 +527,20 @@ func parsePermissionRequestHookInput(m map[string]interface{}) types.PermissionR
 // is cancelled or the query completes.
 //
 // ReceiveMessages returns nil if the query is not initialized.
+//
+// Important: Call ReceiveMessages once and reuse the returned channel for
+// multiple queries. Each call to ReceiveMessages returns the same underlying
+// channel to avoid message distribution issues when multiple goroutines read
+// from the same source.
 func (c *Client) ReceiveMessages(ctx context.Context) <-chan types.Message {
+	// Return cached channel if available
+	if c.messageChanOnce && c.messageChan != nil {
+		return c.messageChan
+	}
+
 	output := make(chan types.Message)
+	c.messageChan = output
+	c.messageChanOnce = true
 
 	go func() {
 		defer close(output)
@@ -567,11 +583,15 @@ func (c *Client) ReceiveMessages(ctx context.Context) <-chan types.Message {
 //	    "session_id": "...",
 //	}
 //
-// Query returns a channel of Message types from the conversation, or an error
-// if the client is not connected.
-func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...string) (<-chan types.Message, error) {
+// Query returns an error if the client is not connected.
+//
+// Important: To receive responses, call ReceiveMessages() once before or after
+// Query and reuse the returned channel for all queries. This matches the Python
+// SDK pattern where query() only sends messages and receive_messages() is called
+// separately.
+func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...string) error {
 	if !c.connected || c.query == nil || c.transport == nil {
-		return nil, errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
+		return errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
 	}
 
 	sid := "default"
@@ -588,10 +608,7 @@ func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...str
 			"session_id":         sid,
 		}
 		data, _ := json.Marshal(message)
-		if err := c.transport.Write(ctx, string(data)+"\n"); err != nil {
-			return nil, err
-		}
-		return c.ReceiveMessages(ctx), nil
+		return c.transport.Write(ctx, string(data)+"\n")
 	}
 
 	// Handle channel prompts
@@ -607,7 +624,7 @@ func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...str
 		}()
 	}
 
-	return c.ReceiveMessages(ctx), nil
+	return nil
 }
 
 // Interrupt sends an interrupt signal to the running conversation.

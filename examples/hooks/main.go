@@ -477,7 +477,8 @@ func float64Ptr(f float64) *float64 {
 // runExampleQuery demonstrates how to run a query with hooks enabled.
 func runExampleQuery(ctx context.Context, client interface {
 	Connect(context.Context) error
-	Query(context.Context, interface{}, ...string) (<-chan types.Message, error)
+	ReceiveMessages(context.Context) <-chan types.Message
+	Query(context.Context, interface{}, ...string) error
 	Close() error
 }) {
 	// Connect to Claude
@@ -486,9 +487,11 @@ func runExampleQuery(ctx context.Context, client interface {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
 	// Send a query
-	msgChan, err := client.Query(ctx, "List the files in the current directory using Bash")
-	if err != nil {
+	if err := client.Query(ctx, "List the files in the current directory using Bash"); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}

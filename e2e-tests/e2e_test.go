@@ -18,7 +18,8 @@ func TestBasicQuery(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestBasicQuery")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestBasicQuery")
@@ -33,14 +34,16 @@ func TestBasicQuery(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: \"Say 'Hello, World!' and nothing else\"")
-	msgChan, err := client.Query(ctx, "Say 'Hello, World!' and nothing else")
-	if err != nil {
+	if err := client.Query(ctx, "Say 'Hello, World!' and nothing else"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -61,7 +64,8 @@ func TestQueryWithSystemPrompt(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestQueryWithSystemPrompt")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestQueryWithSystemPrompt")
@@ -77,14 +81,16 @@ func TestQueryWithSystemPrompt(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: \"Say something\"")
-	msgChan, err := client.Query(ctx, "Say something")
-	if err != nil {
+	if err := client.Query(ctx, "Say something"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -102,7 +108,8 @@ func TestQueryWithBudget(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestQueryWithBudget")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestQueryWithBudget")
@@ -120,14 +127,16 @@ func TestQueryWithBudget(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: \"Write a very long story about a cat\"")
-	msgChan, err := client.Query(ctx, "Write a very long story about a cat")
-	if err != nil {
+	if err := client.Query(ctx, "Write a very long story about a cat"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -146,7 +155,8 @@ func TestStreamingMode(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestStreamingMode")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestStreamingMode")
@@ -161,14 +171,16 @@ func TestStreamingMode(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: \"Count from 1 to 5\"")
-	msgChan, err := client.Query(ctx, "Count from 1 to 5")
-	if err != nil {
+	if err := client.Query(ctx, "Count from 1 to 5"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -190,7 +202,8 @@ func TestBypassPermissionsMode(t *testing.T) {
 	startTime := time.Now()
 	PrintTestHeader(t, "TestBypassPermissionsMode")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	logger := NewTestLogger(t, "TestBypassPermissionsMode")
@@ -205,14 +218,16 @@ func TestBypassPermissionsMode(t *testing.T) {
 	defer client.Close()
 
 	logger.Step("Connecting")
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	logger.Step("Sending query: \"Say 'test passed'\"")
-	msgChan, err := client.Query(ctx, "Say 'test passed'")
-	if err != nil {
+	if err := client.Query(ctx, "Say 'test passed'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

@@ -58,12 +58,14 @@ func TestMCPControlWithSDKMCPReal(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries (Python SDK pattern)
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Step 1: Use the SDK MCP tool (with its own timeout context)
 	t.Log("=== Step 1: Query with SDK MCP tool ===")
 	ctx1, cancel1 := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel1()
-	msgChan, err := client.Query(ctx1, "Use the echo tool to say 'Hello from SDK MCP'")
-	if err != nil {
+	if err := client.Query(ctx1, "Use the echo tool to say 'Hello from SDK MCP'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -119,12 +121,11 @@ func TestMCPControlWithSDKMCPReal(t *testing.T) {
 	t.Log("\n=== Step 4: Second query to verify client works ===")
 	ctx4, cancel4 := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel4()
-	msgChan2, err := client.Query(ctx4, "Use the echo tool to say 'Second message'")
-	if err != nil {
+	if err := client.Query(ctx4, "Use the echo tool to say 'Second message'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
-	result2 := drainMessagesAndCheckResult(ctx4, t, msgChan2)
+	result2 := drainMessagesAndCheckResult(ctx4, t, msgChan)
 	if !result2.Found {
 		t.Error("Expected to receive a result message in second query")
 	}
@@ -135,7 +136,8 @@ func TestMCPControlWithSDKMCPReal(t *testing.T) {
 func TestMultipleSDKMCPServers(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	// Create first tool
@@ -187,25 +189,26 @@ func TestMultipleSDKMCPServers(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Test both tools
 	t.Log("=== Testing math tool ===")
-	msgChan, err := client.Query(ctx, "Use the add tool to calculate 2+3")
-	if err != nil {
+	if err := client.Query(ctx, "Use the add tool to calculate 2+3"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	result := drainMessagesAndCheckResult(ctx, t, msgChan)
 	t.Logf("✅ Math tool result: found=%v, isError=%v", result.Found, result.IsError)
 
 	t.Log("\n=== Testing greeting tool ===")
-	msgChan2, err := client.Query(ctx, "Use the greet tool to greet 'World'")
-	if err != nil {
+	if err := client.Query(ctx, "Use the greet tool to greet 'World'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	result2 := drainMessagesAndCheckResult(ctx, t, msgChan2)
+	result2 := drainMessagesAndCheckResult(ctx, t, msgChan)
 	t.Logf("✅ Greeting tool result: found=%v, isError=%v", result2.Found, result2.IsError)
 }
 
@@ -218,6 +221,9 @@ type TestResult struct {
 }
 
 // drainMessagesAndCheckResult drains messages and returns result info.
+// It reads until ResultMessage is found or context times out.
+// Unlike the previous version, it does NOT drain remaining messages in background
+// because the same channel is reused for multiple queries.
 func drainMessagesAndCheckResult(ctx context.Context, t *testing.T, msgChan <-chan types.Message) TestResult {
 	var result TestResult
 
@@ -245,11 +251,8 @@ func drainMessagesAndCheckResult(ctx context.Context, t *testing.T, msgChan <-ch
 				if m.TotalCostUSD != nil {
 					result.Cost = *m.TotalCostUSD
 				}
-				// Drain remaining in background
-				go func() {
-					for range msgChan {
-					}
-				}()
+				// Return immediately after finding ResultMessage
+				// Do NOT drain remaining messages - let them be read by the next query
 				return result
 			}
 		}

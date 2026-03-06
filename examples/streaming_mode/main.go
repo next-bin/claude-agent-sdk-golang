@@ -72,9 +72,11 @@ func exampleBasicStreaming(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("User: What is 2+2?")
-	msgChan, err := c.Query(ctx, "What is 2+2?")
-	if err != nil {
+	if err := c.Query(ctx, "What is 2+2?"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -102,10 +104,12 @@ func exampleMultiTurnConversation(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	// First turn
 	fmt.Println("User: What's the capital of France?")
-	msgChan, err := c.Query(ctx, "What's the capital of France?")
-	if err != nil {
+	if err := c.Query(ctx, "What's the capital of France?"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -118,8 +122,7 @@ func exampleMultiTurnConversation(ctx context.Context) error {
 
 	// Second turn - follow-up
 	fmt.Println("\nUser: What's the population of that city?")
-	msgChan, err = c.Query(ctx, "What's the population of that city?")
-	if err != nil {
+	if err := c.Query(ctx, "What's the population of that city?"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -174,8 +177,7 @@ func exampleConcurrentResponses(ctx context.Context) error {
 
 	for i, question := range questions {
 		fmt.Printf("\nUser: %s\n", question)
-		_, err := c.Query(ctx, question)
-		if err != nil {
+		if err := c.Query(ctx, question); err != nil {
 			receiveErr = fmt.Errorf("failed to query: %w", err)
 			break
 		}
@@ -206,10 +208,12 @@ func exampleWithInterrupt(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	// Start a long-running task
 	fmt.Println("\nUser: Count from 1 to 100 slowly")
-	msgChan, err := c.Query(ctx, "Count from 1 to 100 slowly, with a brief pause between each number")
-	if err != nil {
+	if err := c.Query(ctx, "Count from 1 to 100 slowly, with a brief pause between each number"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -244,8 +248,7 @@ consumeLoop:
 
 	// Send new instruction after interrupt
 	fmt.Println("\nUser: Never mind, just tell me a quick joke")
-	msgChan, err = c.Query(ctx, "Never mind, just tell me a quick joke")
-	if err != nil {
+	if err := c.Query(ctx, "Never mind, just tell me a quick joke"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -272,8 +275,10 @@ func exampleManualMessageHandling(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
-	msgChan, err := c.Query(ctx, "List 5 programming languages and their main use cases")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
+	if err := c.Query(ctx, "List 5 programming languages and their main use cases"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -335,9 +340,11 @@ func exampleWithOptions(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("User: Create a simple hello.txt file with a greeting message")
-	msgChan, err := c.Query(ctx, "Create a simple hello.txt file with a greeting message")
-	if err != nil {
+	if err := c.Query(ctx, "Create a simple hello.txt file with a greeting message"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -377,9 +384,11 @@ func exampleBashCommand(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("User: Run a bash echo command")
-	msgChan, err := c.Query(ctx, "Run a bash echo command that says 'Hello from bash!'")
-	if err != nil {
+	if err := c.Query(ctx, "Run a bash echo command that says 'Hello from bash!'"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -508,10 +517,12 @@ func exampleControlProtocol(ctx context.Context) error {
 
 	fmt.Println("\n2. Testing interrupt capability...")
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	// Start a long-running task
 	fmt.Println("User: Count from 1 to 20 slowly")
-	msgChan, err := c.Query(ctx, "Count from 1 to 20 slowly, pausing between each number")
-	if err != nil {
+	if err := c.Query(ctx, "Count from 1 to 20 slowly, pausing between each number"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -557,8 +568,7 @@ consumeLoop2:
 
 	// Send new query after interrupt
 	fmt.Println("\nUser: Just say 'Hello!'")
-	msgChan, err = c.Query(ctx, "Just say 'Hello!'")
-	if err != nil {
+	if err := c.Query(ctx, "Just say 'Hello!'"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -590,10 +600,12 @@ func exampleErrorHandling(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	// Send a message that will take time to process
 	fmt.Println("User: Run a bash sleep command for 60 seconds not in the background")
-	msgChan, err := c.Query(ctx, "Run a bash sleep command for 60 seconds not in the background")
-	if err != nil {
+	if err := c.Query(ctx, "Run a bash sleep command for 60 seconds not in the background"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -648,9 +660,11 @@ func exampleMessageTypes(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("User: Tell me a short joke")
-	msgChan, err := c.Query(ctx, "Tell me a short joke")
-	if err != nil {
+	if err := c.Query(ctx, "Tell me a short joke"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 
@@ -752,10 +766,12 @@ func exampleWithReceiveResponse(ctx context.Context) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	// Connect with an initial prompt
 	fmt.Println("User: What is the capital of Italy?")
-	msgChan, err := c.Query(ctx, "What is the capital of Italy?")
-	if err != nil {
+	if err := c.Query(ctx, "What is the capital of Italy?"); err != nil {
 		return fmt.Errorf("failed to query: %w", err)
 	}
 

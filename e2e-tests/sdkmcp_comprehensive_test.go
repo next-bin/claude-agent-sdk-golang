@@ -93,19 +93,22 @@ func TestSDKMCPComprehensive(t *testing.T) {
 	}
 	logger.Status("Connected successfully")
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Test 1: Echo tool
 	t.Run("EchoTool", func(t *testing.T) {
-		testEchoTool(t, client, logger)
+		testEchoTool(t, client, msgChan, logger)
 	})
 
 	// Test 2: Add tool
 	t.Run("AddTool", func(t *testing.T) {
-		testAddTool(t, client, logger)
+		testAddTool(t, client, msgChan, logger)
 	})
 
 	// Test 3: Greet tool
 	t.Run("GreetTool", func(t *testing.T) {
-		testGreetTool(t, client, logger)
+		testGreetTool(t, client, msgChan, logger)
 	})
 
 	// Test 4: MCP Status
@@ -115,13 +118,12 @@ func TestSDKMCPComprehensive(t *testing.T) {
 }
 
 // testEchoTool tests the echo tool functionality
-func testEchoTool(t *testing.T, client *claude.Client, logger *TestLogger) {
+func testEchoTool(t *testing.T, client *claude.Client, msgChan <-chan types.Message, logger *TestLogger) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	logger.Step("Testing echo tool")
-	msgChan, err := client.Query(ctx, "Use the echo tool to say 'Hello, MCP World!'")
-	if err != nil {
+	if err := client.Query(ctx, "Use the echo tool to say 'Hello, MCP World!'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -140,13 +142,12 @@ func testEchoTool(t *testing.T, client *claude.Client, logger *TestLogger) {
 }
 
 // testAddTool tests the add tool functionality
-func testAddTool(t *testing.T, client *claude.Client, logger *TestLogger) {
+func testAddTool(t *testing.T, client *claude.Client, msgChan <-chan types.Message, logger *TestLogger) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	logger.Step("Testing add tool")
-	msgChan, err := client.Query(ctx, "Use the add tool to calculate 42 + 58")
-	if err != nil {
+	if err := client.Query(ctx, "Use the add tool to calculate 42 + 58"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -162,13 +163,12 @@ func testAddTool(t *testing.T, client *claude.Client, logger *TestLogger) {
 }
 
 // testGreetTool tests the greet tool functionality
-func testGreetTool(t *testing.T, client *claude.Client, logger *TestLogger) {
+func testGreetTool(t *testing.T, client *claude.Client, msgChan <-chan types.Message, logger *TestLogger) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	logger.Step("Testing greet tool")
-	msgChan, err := client.Query(ctx, "Use the greet tool to greet 'Claude'")
-	if err != nil {
+	if err := client.Query(ctx, "Use the greet tool to greet 'Claude'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -300,14 +300,16 @@ func TestSDKMCPErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Test error tool
 	t.Run("ErrorTool", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		logger.Step("Testing error tool")
-		msgChan, err := client.Query(ctx, "Use the always_error tool with message 'test error'")
-		if err != nil {
+		if err := client.Query(ctx, "Use the always_error tool with message 'test error'"); err != nil {
 			t.Fatalf("Failed to query: %v", err)
 		}
 
@@ -423,6 +425,9 @@ func TestMultipleSDKMCPServersComprehensive(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Test using tools from different servers
 	t.Run("CrossServerTools", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -430,8 +435,7 @@ func TestMultipleSDKMCPServersComprehensive(t *testing.T) {
 
 		logger.Step("Testing tools from multiple servers")
 		// Ask Claude to use tools from different servers
-		msgChan, err := client.Query(ctx, "First use calc_add to add [10, 20, 30], then use string_upper to convert 'hello world' to uppercase")
-		if err != nil {
+		if err := client.Query(ctx, "First use calc_add to add [10, 20, 30], then use string_upper to convert 'hello world' to uppercase"); err != nil {
 			t.Fatalf("Failed to query: %v", err)
 		}
 
@@ -560,14 +564,16 @@ func TestSDKMCPWithComplexSchema(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Test address formatting
 	t.Run("FormatAddress", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		logger.Step("Testing format_address with complex schema")
-		msgChan, err := client.Query(ctx, "Use format_address with street '123 Main St', city 'San Francisco', zipcode '94102', country 'USA'")
-		if err != nil {
+		if err := client.Query(ctx, "Use format_address with street '123 Main St', city 'San Francisco', zipcode '94102', country 'USA'"); err != nil {
 			t.Fatalf("Failed to query: %v", err)
 		}
 
@@ -587,8 +593,7 @@ func TestSDKMCPWithComplexSchema(t *testing.T) {
 		defer cancel()
 
 		logger.Step("Testing process_items with array of objects")
-		msgChan, err := client.Query(ctx, "Use process_items with items: [{name: 'Apple', quantity: 5}, {name: 'Banana', quantity: 3}]")
-		if err != nil {
+		if err := client.Query(ctx, "Use process_items with items: [{name: 'Apple', quantity: 5}, {name: 'Banana', quantity: 3}]"); err != nil {
 			t.Fatalf("Failed to query: %v", err)
 		}
 

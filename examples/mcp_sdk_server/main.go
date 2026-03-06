@@ -397,8 +397,10 @@ func basicCalculatorExample(ctx context.Context) {
 			log.Fatalf("Failed to connect: %v", err)
 		}
 
-		msgChan, err := client.Query(ctx, "Calculate 15 + 27")
-		if err != nil {
+		// Create message channel once and reuse for all queries
+		msgChan := client.ReceiveMessages(ctx)
+
+		if err := client.Query(ctx, "Calculate 15 + 27"); err != nil {
 			log.Fatalf("Query failed: %v", err)
 		}
 

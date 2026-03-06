@@ -249,13 +249,15 @@ func main() {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
 	for i, prompt := range prompts {
 		fmt.Printf("\n%s\n", "==================================================")
 		fmt.Printf("Prompt: %s\n", prompt)
 		fmt.Printf("%s\n", "==================================================")
 
-		msgChan, err := client.Query(ctx, prompt)
-		if err != nil {
+		if err := client.Query(ctx, prompt); err != nil {
 			log.Printf("Query failed: %v", err)
 			continue
 		}

@@ -93,8 +93,10 @@ func basicAgentExample(ctx context.Context) {
 		return
 	}
 
-	msgChan, err := client.Query(ctx, "Use the code-reviewer agent to review the code in main.go")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
+	if err := client.Query(ctx, "Use the code-reviewer agent to review the code in main.go"); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}
@@ -148,8 +150,10 @@ func multipleAgentsExample(ctx context.Context) {
 		return
 	}
 
-	msgChan, err := client.Query(ctx, "Use the analyzer agent to find all Go files in the current directory")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
+	if err := client.Query(ctx, "Use the analyzer agent to find all Go files in the current directory"); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}
@@ -268,8 +272,11 @@ Provide specific optimization recommendations with expected impact.`,
 	// Uncomment the following to actually run a query:
 	/*
 		fmt.Println("Running query that may invoke agents...")
-		msgChan, err := client.Query(ctx, "Review the code in main.go for any security issues")
-		if err != nil {
+
+		// Create message channel once and reuse for all queries
+		msgChan := client.ReceiveMessages(ctx)
+
+		if err := client.Query(ctx, "Review the code in main.go for any security issues"); err != nil {
 			log.Printf("Query failed: %v", err)
 			return
 		}
@@ -343,8 +350,10 @@ func runAgentQueryExample() {
 2. Code quality issues
 3. Potential improvements`
 
-	msgChan, err := client.Query(ctx, query)
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
+	if err := client.Query(ctx, query); err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
 

@@ -21,7 +21,8 @@ import (
 func TestPermissionCallbackGetsCalled(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	callbackInvocations := make([]struct {
@@ -47,13 +48,15 @@ func TestPermissionCallbackGetsCalled(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Use a simple query that should trigger the callback if tools are used
-	msgChan, err := client.Query(ctx, "List files in /tmp directory")
-	if err != nil {
+	if err := client.Query(ctx, "List files in /tmp directory"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -72,7 +75,8 @@ func TestPermissionCallbackGetsCalled(t *testing.T) {
 func TestPermissionCallbackAllow(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	allowedTools := []string{"Read", "Glob", "Grep"}
@@ -110,12 +114,14 @@ func TestPermissionCallbackAllow(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say 'hello'")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say 'hello'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -131,7 +137,8 @@ func TestPermissionCallbackAllow(t *testing.T) {
 func TestPermissionCallbackWithUpdatedPermissions(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	permissionCallback := func(toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
@@ -161,12 +168,14 @@ func TestPermissionCallbackWithUpdatedPermissions(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say 'test passed'")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say 'test passed'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -181,7 +190,8 @@ func TestPermissionCallbackWithUpdatedPermissions(t *testing.T) {
 func TestPermissionCallbackDeny(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	permissionCallback := func(toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
@@ -205,12 +215,14 @@ func TestPermissionCallbackDeny(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say hello")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say hello"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -226,7 +238,8 @@ func TestPermissionCallbackDeny(t *testing.T) {
 func TestPermissionCallbackDenyWithInterrupt(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	permissionCallback := func(toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
@@ -247,12 +260,14 @@ func TestPermissionCallbackDenyWithInterrupt(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say hello")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say hello"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

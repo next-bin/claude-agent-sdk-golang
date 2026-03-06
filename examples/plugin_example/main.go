@@ -253,8 +253,10 @@ that this message came from a custom plugin loaded via the SDK.`)
 func runQueryWithPlugin(ctx context.Context, client *claude.Client) {
 	fmt.Println("Running query to verify plugin loading...")
 
-	msgChan, err := client.Query(ctx, "Hello!")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
+	if err := client.Query(ctx, "Hello!"); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}

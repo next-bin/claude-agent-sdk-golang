@@ -19,7 +19,8 @@ import (
 func TestTaskMessages(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -30,9 +31,12 @@ func TestTaskMessages(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
 
 	// Track all message types received
 	var (
@@ -43,8 +47,7 @@ func TestTaskMessages(t *testing.T) {
 	)
 
 	// Make a query that might trigger subagent usage
-	msgChan, err := client.Query(ctx, "List the files in the current directory using Bash tool")
-	if err != nil {
+	if err := client.Query(ctx, "List the files in the current directory using Bash tool"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -154,7 +157,8 @@ done:
 func TestTaskMessageFields(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 90*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -165,12 +169,14 @@ func TestTaskMessageFields(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "What is 1+1?")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "What is 1+1?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -230,7 +236,8 @@ done:
 func TestResultMessageStopReason(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -241,12 +248,14 @@ func TestResultMessageStopReason(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say hello")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say hello"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

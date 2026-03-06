@@ -58,9 +58,11 @@ func TestSdkMcpToolActualExecution(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
 	// Query with explicit tool instruction
-	msgChan, err := client.Query(ctx, "Call the mcp__test__echo tool with message 'Hello from test'. You must use this exact tool name.")
-	if err != nil {
+	if err := client.Query(ctx, "Call the mcp__test__echo tool with message 'Hello from test'. You must use this exact tool name."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -87,11 +89,6 @@ messageLoop:
 				}
 			case *types.ResultMessage:
 				resultMsg = m
-				// Drain remaining
-				go func() {
-					for range msgChan {
-					}
-				}()
 				break messageLoop
 			}
 		}

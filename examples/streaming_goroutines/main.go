@@ -76,6 +76,9 @@ func multiTurnConversation(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("=== Multi-turn Conversation ===")
 	fmt.Println()
 
@@ -97,8 +100,7 @@ func multiTurnConversation(ctx context.Context) {
 
 	// First turn: Simple math question
 	fmt.Println("User: What's 15 + 27?")
-	msgChan, err := c.Query(ctx, "What's 15 + 27?")
-	if err != nil {
+	if err := c.Query(ctx, "What's 15 + 27?"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -109,8 +111,7 @@ func multiTurnConversation(ctx context.Context) {
 
 	// Second turn: Follow-up calculation
 	fmt.Println("User: Now multiply that result by 2")
-	msgChan, err = c.Query(ctx, "Now multiply that result by 2")
-	if err != nil {
+	if err := c.Query(ctx, "Now multiply that result by 2"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -121,8 +122,7 @@ func multiTurnConversation(ctx context.Context) {
 
 	// Third turn: One more operation
 	fmt.Println("User: Divide that by 7 and round to 2 decimal places")
-	msgChan, err = c.Query(ctx, "Divide that by 7 and round to 2 decimal places")
-	if err != nil {
+	if err := c.Query(ctx, "Divide that by 7 and round to 2 decimal places"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -145,6 +145,9 @@ func backgroundProcessing(ctx context.Context) {
 		fmt.Printf("Failed to connect: %v\n", err)
 		return
 	}
+
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
 
 	// Channel for message results
 	results := make(chan string)
@@ -169,8 +172,7 @@ func backgroundProcessing(ctx context.Context) {
 	for i, query := range queries {
 		fmt.Printf("\nQuery %d: %s\n", i+1, query)
 
-		msgChan, err := c.Query(ctx, query)
-		if err != nil {
+		if err := c.Query(ctx, query); err != nil {
 			fmt.Printf("Query failed: %v\n", err)
 			continue
 		}
@@ -229,8 +231,8 @@ func concurrentQueries(ctx context.Context) {
 				return
 			}
 
-			msgChan, err := c.Query(ctx, text)
-			if err != nil {
+			msgChan := c.ReceiveMessages(ctx)
+			if err := c.Query(ctx, text); err != nil {
 				results <- fmt.Sprintf("[Query %d] Query failed: %v", id, err)
 				return
 			}
@@ -286,11 +288,13 @@ func contextCancellation(ctx context.Context) {
 	// Channel to signal when query is done
 	done := make(chan struct{})
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	go func() {
 		defer close(done)
 
-		msgChan, err := c.Query(ctx, "Count from 1 to 100. Do not use bash sleep, just count quickly.")
-		if err != nil {
+		if err := c.Query(ctx, "Count from 1 to 100. Do not use bash sleep, just count quickly."); err != nil {
 			fmt.Printf("Query failed: %v\n", err)
 			return
 		}
@@ -320,8 +324,7 @@ func contextCancellation(ctx context.Context) {
 
 	// Show that client is still usable after cancellation
 	fmt.Println("\nSending a new query after cancellation...")
-	msgChan, err := c.Query(context.Background(), "Just say 'Hello after cancellation!'")
-	if err != nil {
+	if err := c.Query(context.Background(), "Just say 'Hello after cancellation!'"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}

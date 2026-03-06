@@ -80,11 +80,13 @@ func runWithBudgetLimit(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Printf("Max Budget set to: $%.2f\n", maxBudget)
 	fmt.Println("Query: What is the capital of France?")
 
-	msgChan, err := c.Query(ctx, "What is the capital of France?")
-	if err != nil {
+	if err := c.Query(ctx, "What is the capital of France?"); err != nil {
 		handleError(err)
 		return
 	}
@@ -109,11 +111,13 @@ func runWithTurnLimit(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Printf("Max Turns set to: %d\n", maxTurns)
 	fmt.Println("Query: What is 2+2?")
 
-	msgChan, err := c.Query(ctx, "What is 2+2?")
-	if err != nil {
+	if err := c.Query(ctx, "What is 2+2?"); err != nil {
 		handleError(err)
 		return
 	}
@@ -140,11 +144,13 @@ func runWithCombinedLimits(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Printf("Max Budget: $%.2f, Max Turns: %d\n", maxBudget, maxTurns)
 	fmt.Println("Query: Tell me a short joke about programming.")
 
-	msgChan, err := c.Query(ctx, "Tell me a short joke about programming.")
-	if err != nil {
+	if err := c.Query(ctx, "Tell me a short joke about programming."); err != nil {
 		handleError(err)
 		return
 	}
@@ -162,6 +168,9 @@ func runSessionWithCostTracking(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	queries := []string{
 		"What is 5 + 7?",
 		"What is the capital of Japan?",
@@ -174,8 +183,7 @@ func runSessionWithCostTracking(ctx context.Context) {
 	for i, query := range queries {
 		fmt.Printf("\nQuery %d: %s\n", i+1, query)
 
-		msgChan, err := c.Query(ctx, query)
-		if err != nil {
+		if err := c.Query(ctx, query); err != nil {
 			handleError(err)
 			continue
 		}

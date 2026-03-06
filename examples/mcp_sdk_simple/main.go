@@ -125,12 +125,14 @@ func main() {
 	}
 	defer client.Close()
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
 	fmt.Println("Sending query: 'Calculate 15 + 27, then multiply the result by 3'")
 	fmt.Println()
 
 	// Query Claude
-	msgChan, err := client.Query(ctx, "Calculate 15 + 27, then multiply the result by 3. Show me the calculations.")
-	if err != nil {
+	if err := client.Query(ctx, "Calculate 15 + 27, then multiply the result by 3. Show me the calculations."); err != nil {
 		log.Fatalf("Query failed: %v", err)
 	}
 

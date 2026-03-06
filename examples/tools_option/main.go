@@ -91,6 +91,9 @@ func demoToolsPreset(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("Configured with ToolsPreset (claude_code)")
 	fmt.Println("This provides the standard Claude Code tool set including:")
 	fmt.Println("  - Read, Write, Edit (file operations)")
@@ -100,8 +103,7 @@ func demoToolsPreset(ctx context.Context) {
 	fmt.Println()
 	fmt.Println("Query: What tools do you have available?")
 
-	msgChan, err := c.Query(ctx, "What tools do you have available? List them briefly.")
-	if err != nil {
+	if err := c.Query(ctx, "What tools do you have available? List them briefly."); err != nil {
 		handleError(err)
 		return
 	}
@@ -132,6 +134,9 @@ func demoAllowedTools(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("Configured with AllowedTools restriction:")
 	fmt.Printf("  Allowed tools: %v\n", allowedTools)
 	fmt.Println("  The agent can ONLY use these tools")
@@ -139,8 +144,7 @@ func demoAllowedTools(ctx context.Context) {
 	fmt.Println()
 	fmt.Println("Query: List the files in the current directory")
 
-	msgChan, err := c.Query(ctx, "List the Go files in the current directory using Glob.")
-	if err != nil {
+	if err := c.Query(ctx, "List the Go files in the current directory using Glob."); err != nil {
 		handleError(err)
 		return
 	}
@@ -171,6 +175,9 @@ func demoDisallowedTools(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("Configured with DisallowedTools restriction:")
 	fmt.Printf("  Disallowed tools: %v\n", disallowedTools)
 	fmt.Println("  All other tools are available")
@@ -178,8 +185,7 @@ func demoDisallowedTools(ctx context.Context) {
 	fmt.Println()
 	fmt.Println("Query: Read the go.mod file and explain its contents")
 
-	msgChan, err := c.Query(ctx, "Read the go.mod file and explain its contents briefly.")
-	if err != nil {
+	if err := c.Query(ctx, "Read the go.mod file and explain its contents briefly."); err != nil {
 		handleError(err)
 		return
 	}
@@ -213,6 +219,9 @@ func demoCombinedTools(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("Configured with combined tool restrictions:")
 	fmt.Println("  Base: ToolsPreset (claude_code)")
 	fmt.Println("  Additional: DisallowedTools (Write, Edit, Bash)")
@@ -222,8 +231,7 @@ func demoCombinedTools(ctx context.Context) {
 	fmt.Println()
 	fmt.Println("Query: Search for and summarize the package documentation")
 
-	msgChan, err := c.Query(ctx, "Use Grep to find the package documentation comment in types.go and summarize it.")
-	if err != nil {
+	if err := c.Query(ctx, "Use Grep to find the package documentation comment in types.go and summarize it."); err != nil {
 		handleError(err)
 		return
 	}

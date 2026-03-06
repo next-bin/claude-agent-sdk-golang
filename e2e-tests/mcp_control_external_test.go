@@ -18,7 +18,8 @@ import (
 func TestMCPControlWithCLIPlugins(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 180*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -29,14 +30,16 @@ func TestMCPControlWithCLIPlugins(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// First, make a query to trigger MCP server connections
 	t.Log("=== Step 0: Initial query to trigger MCP connections ===")
-	msgChan, err := client.Query(ctx, "What tools are available? List them.")
-	if err != nil {
+	if err := client.Query(ctx, "What tools are available? List them."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -116,11 +119,10 @@ func TestMCPControlWithCLIPlugins(t *testing.T) {
 
 	// Step 4: Final query to verify everything works
 	t.Log("\n=== Step 4: Final query to verify client works ===")
-	msgChan2, err := client.Query(ctx, "Say 'MCP control test complete'")
-	if err != nil {
+	if err := client.Query(ctx, "Say 'MCP control test complete'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	drainUntilResult(ctx, msgChan2)
+	drainUntilResult(ctx, msgChan)
 }
 
 // TestMCPControlWithConfiguredMCPServer tests MCP control with the MiniMax MCP server
@@ -128,7 +130,8 @@ func TestMCPControlWithCLIPlugins(t *testing.T) {
 func TestMCPControlWithConfiguredMCPServer(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 180*time.Second)
 	defer cancel()
 
 	// Use the MiniMax MCP server that's configured in ~/.claude.json
@@ -141,14 +144,16 @@ func TestMCPControlWithConfiguredMCPServer(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// First query to trigger MCP connections
 	t.Log("=== Step 0: Initial query to trigger MCP ===")
-	msgChan, err := client.Query(ctx, "What is 2+2?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2+2?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	drainUntilResult(ctx, msgChan)
@@ -220,18 +225,18 @@ func TestMCPControlWithConfiguredMCPServer(t *testing.T) {
 
 	// Step 4: Final query to verify everything works
 	t.Log("\n=== Step 4: Final query ===")
-	msgChan2, err := client.Query(ctx, "Say 'MiniMax MCP control test complete'")
-	if err != nil {
+	if err := client.Query(ctx, "Say 'MiniMax MCP control test complete'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	drainUntilResult(ctx, msgChan2)
+	drainUntilResult(ctx, msgChan)
 }
 
 // TestMCPControlWithCustomStdioServer tests MCP control with a custom stdio MCP server.
 func TestMCPControlWithCustomStdioServer(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	// Configure a simple stdio MCP server using uvx
@@ -250,14 +255,16 @@ func TestMCPControlWithCustomStdioServer(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// First query to trigger MCP
 	t.Log("=== Step 0: Initial query ===")
-	msgChan, err := client.Query(ctx, "What is 1+1?")
-	if err != nil {
+	if err := client.Query(ctx, "What is 1+1?"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	drainUntilResult(ctx, msgChan)
@@ -311,18 +318,18 @@ func TestMCPControlWithCustomStdioServer(t *testing.T) {
 
 	// Step 4: Final query
 	t.Log("\n=== Step 4: Final query ===")
-	msgChan2, err := client.Query(ctx, "Say 'custom MCP test complete'")
-	if err != nil {
+	if err := client.Query(ctx, "Say 'custom MCP test complete'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
-	drainUntilResult(ctx, msgChan2)
+	drainUntilResult(ctx, msgChan)
 }
 
 // TestMCPStatusDetailed tests GetMCPStatus returns detailed server info.
 func TestMCPStatusDetailed(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -333,14 +340,16 @@ func TestMCPStatusDetailed(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// First query to trigger MCP connections
 	t.Log("=== Step 0: Initial query to trigger MCP ===")
-	msgChan, err := client.Query(ctx, "List the available tools")
-	if err != nil {
+	if err := client.Query(ctx, "List the available tools"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	drainUntilResult(ctx, msgChan)
@@ -394,7 +403,8 @@ func TestMCPStatusDetailed(t *testing.T) {
 func TestStopTaskWithRealTask(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -405,13 +415,15 @@ func TestStopTaskWithRealTask(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Start a query that might trigger a subagent/task
-	msgChan, err := client.Query(ctx, "Use the Bash tool to run a long command like 'sleep 5 && echo done'")
-	if err != nil {
+	if err := client.Query(ctx, "Use the Bash tool to run a long command like 'sleep 5 && echo done'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -455,12 +467,6 @@ func TestStopTaskWithRealTask(t *testing.T) {
 		}
 	}
 
-	// Drain remaining messages
-	go func() {
-		for range msgChan {
-		}
-	}()
-
 	if taskID == "" {
 		t.Log("No task was started during this query")
 	}
@@ -477,11 +483,6 @@ func drainUntilResult(ctx context.Context, msgChan <-chan types.Message) {
 				return
 			}
 			if _, isResult := msg.(*types.ResultMessage); isResult {
-				// Drain remaining in background
-				go func() {
-					for range msgChan {
-					}
-				}()
 				return
 			}
 		}
@@ -489,9 +490,8 @@ func drainUntilResult(ctx context.Context, msgChan <-chan types.Message) {
 }
 
 // queryAndDrainResult executes a query and waits for result.
-func queryAndDrainResult(ctx context.Context, t *testing.T, client *claude.Client, prompt string) {
-	msgChan, err := client.Query(ctx, prompt)
-	if err != nil {
+func queryAndDrainResult(ctx context.Context, t *testing.T, client *claude.Client, msgChan <-chan types.Message, prompt string) {
+	if err := client.Query(ctx, prompt); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -510,11 +510,6 @@ func queryAndDrainResult(ctx context.Context, t *testing.T, client *claude.Clien
 			if _, isResult := msg.(*types.ResultMessage); isResult {
 				t.Logf("✅ Query completed: %s", prompt)
 				resultFound = true
-				// Drain remaining
-				go func() {
-					for range msgChan {
-					}
-				}()
 			}
 		}
 	}

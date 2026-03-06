@@ -26,7 +26,8 @@ type hookInvocation struct {
 func TestPreToolUseHookWithAdditionalContext(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	hookInvocations := make([]hookInvocation, 0)
@@ -75,12 +76,14 @@ func TestPreToolUseHookWithAdditionalContext(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Run: echo 'test additional context'")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Run: echo 'test additional context'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -101,7 +104,8 @@ func TestPreToolUseHookWithAdditionalContext(t *testing.T) {
 func TestPostToolUseHookWithToolUseID(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	hookInvocations := make([]hookInvocation, 0)
@@ -149,12 +153,14 @@ func TestPostToolUseHookWithToolUseID(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Run: echo 'test tool_use_id'")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Run: echo 'test tool_use_id'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -174,7 +180,8 @@ func TestPostToolUseHookWithToolUseID(t *testing.T) {
 func TestNotificationHookEvents(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	hookInvocations := make([]hookInvocation, 0)
@@ -219,12 +226,14 @@ func TestNotificationHookEvents(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say hello in one word")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say hello in one word"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -246,7 +255,8 @@ func TestNotificationHookEvents(t *testing.T) {
 func TestMultipleHooksTogether(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	allInvocations := make([]hookInvocation, 0)
@@ -288,12 +298,14 @@ func TestMultipleHooksTogether(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Run: echo 'multi-hook test'")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Run: echo 'multi-hook test'"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

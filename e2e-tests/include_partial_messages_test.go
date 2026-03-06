@@ -18,7 +18,8 @@ import (
 func TestIncludePartialMessagesStreamEvents(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	trueVal := true
@@ -30,12 +31,14 @@ func TestIncludePartialMessagesStreamEvents(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Think of three jokes, then tell one")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Think of three jokes, then tell one"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -114,7 +117,8 @@ func TestIncludePartialMessagesStreamEvents(t *testing.T) {
 func TestPartialMessagesDisabledByDefault(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	// IncludePartialMessages not set (defaults to false)
@@ -125,12 +129,14 @@ func TestPartialMessagesDisabledByDefault(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Say hello")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Say hello"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -171,7 +177,8 @@ func TestPartialMessagesDisabledByDefault(t *testing.T) {
 func TestThinkingDeltas(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	trueVal := true
@@ -183,12 +190,14 @@ func TestThinkingDeltas(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	msgChan, err := client.Query(ctx, "Think step by step about what 2 + 2 equals")
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
+	if err := client.Query(ctx, "Think step by step about what 2 + 2 equals"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

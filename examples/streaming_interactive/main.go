@@ -94,9 +94,11 @@ func basicStreaming(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("User: What is 2+2?")
-	msgChan, err := c.Query(ctx, "What is 2+2?")
-	if err != nil {
+	if err := c.Query(ctx, "What is 2+2?"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -128,10 +130,12 @@ func multiTurnConversation(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	sendAndReceive := func(prompt string) {
 		fmt.Printf("User: %s\n", prompt)
-		msgChan, err := c.Query(ctx, prompt)
-		if err != nil {
+		if err := c.Query(ctx, prompt); err != nil {
 			fmt.Printf("Query failed: %v\n", err)
 			return
 		}
@@ -172,8 +176,10 @@ func persistentClient(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	getResponse := func() {
-		msgChan := c.ReceiveMessages(ctx)
 		for {
 			select {
 			case msg, ok := <-msgChan:
@@ -226,13 +232,15 @@ func withInterrupt(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println()
 	fmt.Println("--- Sending initial message ---")
 	fmt.Println()
 	fmt.Println("User: Count from 1 to 100, with a brief pause between each number")
 
-	msgChan, err := c.Query(ctx, "Count from 1 to 100, with a brief pause between each number. Do NOT use bash sleep, just count quickly.")
-	if err != nil {
+	if err := c.Query(ctx, "Count from 1 to 100, with a brief pause between each number. Do NOT use bash sleep, just count quickly."); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -279,8 +287,7 @@ consumeLoop:
 	fmt.Println()
 	fmt.Println("User: Just say 'Hello! I was interrupted.'")
 
-	msgChan, err = c.Query(ctx, "Just say 'Hello! I was interrupted.'")
-	if err != nil {
+	if err := c.Query(ctx, "Just say 'Hello! I was interrupted.'"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -315,14 +322,16 @@ func withTimeout(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	fmt.Println("User: Run a bash sleep command for 60 seconds")
 
 	// Create a context with timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	msgChan, err := c.Query(ctx, "Run a bash sleep command for 60 seconds")
-	if err != nil {
+	if err := c.Query(ctx, "Run a bash sleep command for 60 seconds"); err != nil {
 		fmt.Printf("Query failed: %v\n", err)
 		return
 	}
@@ -373,6 +382,9 @@ func interactiveREPL(ctx context.Context) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
@@ -391,8 +403,7 @@ func interactiveREPL(ctx context.Context) {
 			break
 		}
 
-		msgChan, err := c.Query(ctx, input)
-		if err != nil {
+		if err := c.Query(ctx, input); err != nil {
 			fmt.Printf("Query failed: %v\n", err)
 			continue
 		}

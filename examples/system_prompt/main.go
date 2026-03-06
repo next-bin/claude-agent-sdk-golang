@@ -222,7 +222,8 @@ TESTING FOCUS:
 // This helper function shows the pattern for running queries.
 func runQuery(ctx context.Context, client interface {
 	Connect(context.Context) error
-	Query(context.Context, interface{}, ...string) (<-chan types.Message, error)
+	ReceiveMessages(context.Context) <-chan types.Message
+	Query(context.Context, interface{}, ...string) error
 	Close() error
 }, prompt string) {
 	// Connect to Claude
@@ -231,8 +232,10 @@ func runQuery(ctx context.Context, client interface {
 		return
 	}
 
-	msgChan, err := client.Query(ctx, prompt)
-	if err != nil {
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(ctx)
+
+	if err := client.Query(ctx, prompt); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}

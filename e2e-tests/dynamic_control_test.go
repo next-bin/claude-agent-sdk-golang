@@ -18,7 +18,8 @@ import (
 func TestSetPermissionMode(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	// Use BypassPermissions to avoid interactive permission prompts in tests
@@ -29,9 +30,12 @@ func TestSetPermissionMode(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
 
 	// Change permission mode to acceptEdits
 	if err := client.SetPermissionMode(ctx, "acceptEdits"); err != nil {
@@ -39,8 +43,7 @@ func TestSetPermissionMode(t *testing.T) {
 	}
 
 	// Make a query
-	msgChan, err := client.Query(ctx, "What is 2+2? Just respond with the number.")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2+2? Just respond with the number."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -52,8 +55,7 @@ func TestSetPermissionMode(t *testing.T) {
 	}
 
 	// Make another query
-	msgChan, err = client.Query(ctx, "What is 3+3? Just respond with the number.")
-	if err != nil {
+	if err := client.Query(ctx, "What is 3+3? Just respond with the number."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -64,7 +66,8 @@ func TestSetPermissionMode(t *testing.T) {
 func TestSetModel(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -74,13 +77,15 @@ func TestSetModel(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Start with default model
-	msgChan, err := client.Query(ctx, "What is 1+1? Just the number.")
-	if err != nil {
+	if err := client.Query(ctx, "What is 1+1? Just the number."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -91,8 +96,7 @@ func TestSetModel(t *testing.T) {
 		t.Logf("SetModel failed: %v (may not be supported)", err)
 	}
 
-	msgChan, err = client.Query(ctx, "What is 2+2? Just the number.")
-	if err != nil {
+	if err := client.Query(ctx, "What is 2+2? Just the number."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -103,8 +107,7 @@ func TestSetModel(t *testing.T) {
 		t.Logf("SetModel failed: %v (may not be supported)", err)
 	}
 
-	msgChan, err = client.Query(ctx, "What is 3+3? Just the number.")
-	if err != nil {
+	if err := client.Query(ctx, "What is 3+3? Just the number."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -115,7 +118,8 @@ func TestSetModel(t *testing.T) {
 func TestInterrupt(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -125,13 +129,15 @@ func TestInterrupt(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Start a query
-	msgChan, err := client.Query(ctx, "Count from 1 to 100 slowly.")
-	if err != nil {
+	if err := client.Query(ctx, "Count from 1 to 100 slowly."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 
@@ -170,7 +176,8 @@ func TestInterrupt(t *testing.T) {
 func TestGetMCPStatus(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 60*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -180,7 +187,7 @@ func TestGetMCPStatus(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
@@ -197,8 +204,7 @@ func TestGetMCPStatus(t *testing.T) {
 func TestGetServerInfo(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
+	bgCtx := context.Background()
 
 	mode := types.PermissionModeBypassPermissions
 	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
@@ -207,7 +213,7 @@ func TestGetServerInfo(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
@@ -224,7 +230,8 @@ func TestGetServerInfo(t *testing.T) {
 func TestMultipleDynamicOperations(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	bgCtx := context.Background()
+	ctx, cancel := context.WithTimeout(bgCtx, 90*time.Second)
 	defer cancel()
 
 	mode := types.PermissionModeBypassPermissions
@@ -234,14 +241,16 @@ func TestMultipleDynamicOperations(t *testing.T) {
 	})
 	defer client.Close()
 
-	if err := client.Connect(ctx); err != nil {
+	if err := client.Connect(bgCtx); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := client.ReceiveMessages(bgCtx)
+
 	// Initial query
 	t.Log("Query 1: Say hello")
-	msgChan, err := client.Query(ctx, "Say hello")
-	if err != nil {
+	if err := client.Query(ctx, "Say hello"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	count, found := consumeMessagesUntilResult(ctx, msgChan)
@@ -253,8 +262,7 @@ func TestMultipleDynamicOperations(t *testing.T) {
 
 	// Another query
 	t.Log("Query 2: Say goodbye")
-	msgChan, err = client.Query(ctx, "Say goodbye")
-	if err != nil {
+	if err := client.Query(ctx, "Say goodbye"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	count, found = consumeMessagesUntilResult(ctx, msgChan)
@@ -266,8 +274,7 @@ func TestMultipleDynamicOperations(t *testing.T) {
 
 	// Final query
 	t.Log("Query 3: Say done")
-	msgChan, err = client.Query(ctx, "Say done")
-	if err != nil {
+	if err := client.Query(ctx, "Say done"); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 	count, found = consumeMessagesUntilResult(ctx, msgChan)

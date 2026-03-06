@@ -509,9 +509,11 @@ func runExampleQuery(ctx context.Context, c *client.Client) {
 		return
 	}
 
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
 	// Send a query that will trigger tool permission checks
-	msgChan, err := c.Query(ctx, "List the files in the current directory using Bash")
-	if err != nil {
+	if err := c.Query(ctx, "List the files in the current directory using Bash"); err != nil {
 		log.Printf("Query failed: %v", err)
 		return
 	}
