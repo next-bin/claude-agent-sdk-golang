@@ -79,6 +79,13 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 
 	// Validate and configure permission settings
 	if c.options.CanUseTool != nil {
+		// canUseTool callback requires streaming mode (channel prompt, not string)
+		if len(prompt) > 0 {
+			if _, ok := prompt[0].(string); ok {
+				return fmt.Errorf("can_use_tool callback requires streaming mode. Please provide prompt as a channel instead of a string")
+			}
+		}
+
 		// canUseTool and permission_prompt_tool_name are mutually exclusive
 		if c.options.PermissionPromptToolName != nil && *c.options.PermissionPromptToolName != "" {
 			return fmt.Errorf("can_use_tool callback cannot be used with permission_prompt_tool_name. Please use one or the other")

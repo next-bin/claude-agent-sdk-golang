@@ -920,11 +920,141 @@ func TestHookConversionChain(t *testing.T) {
 }
 
 // =============================================================================
+// Test CanUseTool validation
+// =============================================================================
+
+func TestConnect_CanUseTool_WithStringPrompt_ReturnsError(t *testing.T) {
+	// Create a mock can_use_tool callback
+	canUseTool := func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+		return types.PermissionResultAllow{Behavior: "allow"}, nil
+	}
+
+	opts := &types.ClaudeAgentOptions{
+		CanUseTool: canUseTool,
+	}
+
+	client := NewWithOptions(opts)
+	ctx := context.Background()
+
+	// Connect with a string prompt should return error
+	err := client.Connect(ctx, "test prompt")
+	if err == nil {
+		t.Error("expected error when using can_use_tool with string prompt")
+	}
+
+	expectedMsg := "can_use_tool callback requires streaming mode"
+	if err != nil && !containsString(err.Error(), expectedMsg) {
+		t.Errorf("expected error message to contain %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestConnect_CanUseTool_WithChannelPrompt_NoError(t *testing.T) {
+	// Create a mock can_use_tool callback
+	canUseTool := func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+		return types.PermissionResultAllow{Behavior: "allow"}, nil
+	}
+
+	opts := &types.ClaudeAgentOptions{
+		CanUseTool: canUseTool,
+	}
+
+	client := NewWithOptions(opts)
+	ctx := context.Background()
+
+	// Create a channel prompt (streaming mode)
+	promptChan := make(chan map[string]interface{})
+	go func() {
+		promptChan <- map[string]interface{}{
+			"type":    "user",
+			"message": map[string]interface{}{"role": "user", "content": "test"},
+		}
+		close(promptChan)
+	}()
+
+	// Connect with channel prompt should not return validation error
+	// Note: This will fail with CLI not found, but that's expected
+	err := client.Connect(ctx, promptChan)
+	if err != nil {
+		// Should not be the "streaming mode required" error
+		if containsString(err.Error(), "streaming mode") {
+			t.Errorf("unexpected streaming mode error: %v", err)
+		}
+		// Other errors (CLI not found, etc.) are expected
+	}
+}
+
+func TestConnect_CanUseTool_WithPermissionPromptToolName_ReturnsError(t *testing.T) {
+	// Create a mock can_use_tool callback
+	canUseTool := func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+		return types.PermissionResultAllow{Behavior: "allow"}, nil
+	}
+
+	permissionPromptToolName := "custom_tool"
+	opts := &types.ClaudeAgentOptions{
+		CanUseTool:               canUseTool,
+		PermissionPromptToolName: &permissionPromptToolName,
+	}
+
+	client := NewWithOptions(opts)
+	ctx := context.Background()
+
+	// Should return error because can_use_tool and permission_prompt_tool_name are mutually exclusive
+	err := client.Connect(ctx)
+	if err == nil {
+		t.Error("expected error when using both can_use_tool and permission_prompt_tool_name")
+	}
+
+	expectedMsg := "cannot be used with permission_prompt_tool_name"
+	if err != nil && !containsString(err.Error(), expectedMsg) {
+		t.Errorf("expected error message to contain %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestConnect_CanUseTool_NoPrompt_NoError(t *testing.T) {
+	// Create a mock can_use_tool callback
+	canUseTool := func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+		return types.PermissionResultAllow{Behavior: "allow"}, nil
+	}
+
+	opts := &types.ClaudeAgentOptions{
+		CanUseTool: canUseTool,
+	}
+
+	client := NewWithOptions(opts)
+	ctx := context.Background()
+
+	// Connect without prompt should not return validation error
+	// Note: This will fail with CLI not found, but that's expected
+	err := client.Connect(ctx)
+	if err != nil {
+		// Should not be the "streaming mode required" error
+		if containsString(err.Error(), "streaming mode") {
+			t.Errorf("unexpected streaming mode error: %v", err)
+		}
+		// Other errors (CLI not found, etc.) are expected
+	}
+}
+
+// =============================================================================
 // Helper functions
 // =============================================================================
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // Ensure query.HookMatcher interface is satisfied
