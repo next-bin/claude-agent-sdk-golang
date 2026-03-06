@@ -24,6 +24,7 @@ import (
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
 	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
+	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
@@ -189,7 +190,8 @@ func displayMessage(msg types.Message) {
 // ============================================================================
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := internal.SetupSignalContext()
+	defer cancel()
 
 	// Create the calculator server with all tools
 	calculator := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{

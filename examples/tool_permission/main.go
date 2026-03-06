@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/unitsvc/claude-agent-sdk-golang/client"
+	_ "github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
@@ -82,7 +83,8 @@ func main() {
 	fmt.Println()
 
 	// To actually run queries, uncomment the following:
-	// ctx := context.Background()
+	// ctx, cancel := internal.SetupSignalContext()
+	// defer cancel()
 	// runExampleQuery(ctx, comprehensiveClient)
 }
 

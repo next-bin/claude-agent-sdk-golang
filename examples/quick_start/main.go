@@ -13,11 +13,14 @@ import (
 	"os"
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
+	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
 func main() {
-	ctx := context.Background()
+	// Create a context that cancels on Ctrl+C
+	ctx, cancel := internal.SetupSignalContext()
+	defer cancel()
 
 	// Note: The SDK requires the Claude CLI to be installed.
 	// This example shows the API structure. Actual usage requires:

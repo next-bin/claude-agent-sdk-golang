@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/unitsvc/claude-agent-sdk-golang/client"
+	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
@@ -41,7 +42,8 @@ func main() {
 	}
 
 	example := os.Args[1]
-	ctx := context.Background()
+	ctx, cancel := internal.SetupSignalContext()
+	defer cancel()
 
 	switch example {
 	case "basic":

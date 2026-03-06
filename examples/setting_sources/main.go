@@ -19,11 +19,13 @@ import (
 	"log"
 
 	claude "github.com/unitsvc/claude-agent-sdk-golang"
+	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := internal.SetupSignalContext()
+	defer cancel()
 
 	fmt.Println("=== Claude Agent SDK Go - Setting Sources Example ===")
 	fmt.Println()
