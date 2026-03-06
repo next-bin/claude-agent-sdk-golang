@@ -576,8 +576,10 @@ func (t *SubprocessCLITransport) Connect(ctx context.Context) error {
 
 	// Merge environment variables: system -> user -> SDK required
 	// Start with system environment but filter out CLAUDECODE to allow nested SDK sessions
-	processEnv := []string{}
-	for _, env := range os.Environ() {
+	envs := os.Environ()
+	// Pre-allocate with extra capacity for custom env vars
+	processEnv := make([]string, 0, len(envs)+5+len(t.options.Env))
+	for _, env := range envs {
 		// Skip CLAUDECODE to allow running SDK inside Claude Code session
 		if strings.HasPrefix(env, "CLAUDECODE=") {
 			continue
@@ -698,7 +700,7 @@ func (t *SubprocessCLITransport) readMessagesLoop() {
 		return
 	}
 
-	jsonBuffer := ""
+	var jsonBuffer strings.Builder
 
 	scanner := bufio.NewScanner(t.stdoutReader)
 	// Set a larger buffer size for the scanner
@@ -722,11 +724,11 @@ func (t *SubprocessCLITransport) readMessagesLoop() {
 			}
 
 			// Keep accumulating partial JSON until we can parse it
-			jsonBuffer += jsonLine
+			jsonBuffer.WriteString(jsonLine)
 
-			if len(jsonBuffer) > t.maxBufferSize {
-				bufferLength := len(jsonBuffer)
-				jsonBuffer = ""
+			if jsonBuffer.Len() > t.maxBufferSize {
+				bufferLength := jsonBuffer.Len()
+				jsonBuffer.Reset()
 				select {
 				case t.errorChan <- errors.NewCLIJSONDecodeError(
 					fmt.Sprintf("JSON message exceeded maximum buffer size of %d bytes", t.maxBufferSize),
@@ -738,9 +740,10 @@ func (t *SubprocessCLITransport) readMessagesLoop() {
 			}
 
 			// Try to parse the JSON
+			bufferStr := jsonBuffer.String()
 			var data map[string]interface{}
-			if err := json.Unmarshal([]byte(jsonBuffer), &data); err == nil {
-				jsonBuffer = ""
+			if err := json.Unmarshal([]byte(bufferStr), &data); err == nil {
+				jsonBuffer.Reset()
 				select {
 				case t.messageChan <- data:
 				case <-t.errorChan:

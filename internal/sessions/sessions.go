@@ -126,11 +126,15 @@ func simpleHash(s string) string {
 	}
 
 	digits := "0123456789abcdefghijklmnopqrstuvwxyz"
-	var out []byte
+	out := make([]byte, 0, 8) // Pre-allocate: max 8 digits for uint32 in base36
 	n := uint32(signed)
 	for n > 0 {
-		out = append([]byte{digits[n%36]}, out...)
+		out = append(out, digits[n%36])
 		n /= 36
+	}
+	// Reverse the slice
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
 	}
 	return string(out)
 }
@@ -803,7 +807,9 @@ func readSessionFile(sessionID, directory string) (string, error) {
 
 // parseTranscriptEntries parses JSONL content into transcript entries.
 func parseTranscriptEntries(content string) []transcriptEntry {
-	var entries []transcriptEntry
+	// Pre-allocate based on estimated line count
+	lineCount := strings.Count(content, "\n") + 1
+	entries := make([]transcriptEntry, 0, lineCount)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
@@ -853,7 +859,8 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 		}
 	}
 
-	var terminals []transcriptEntry
+	// Pre-allocate terminals slice
+	terminals := make([]transcriptEntry, 0, len(entries))
 	for _, entry := range entries {
 		uuid := entry["uuid"].(string)
 		if !parentUUIDs[uuid] {
@@ -862,7 +869,7 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 	}
 
 	// From each terminal, walk back to find the nearest user/assistant leaf
-	var leaves []transcriptEntry
+	leaves := make([]transcriptEntry, 0, len(terminals))
 	for _, terminal := range terminals {
 		cur := terminal
 		seen := make(map[string]bool)
@@ -895,7 +902,7 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 	}
 
 	// Pick the leaf from the main chain (not sidechain/team/meta)
-	var mainLeaves []transcriptEntry
+	mainLeaves := make([]transcriptEntry, 0, len(leaves))
 	for _, leaf := range leaves {
 		if leaf["isSidechain"] == true {
 			continue
@@ -926,7 +933,7 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 	}
 
 	// Walk from leaf to root via parentUuid
-	var chain []transcriptEntry
+	chain := make([]transcriptEntry, 0, len(entries))
 	chainSeen := make(map[string]bool)
 	cur := best
 
@@ -955,7 +962,7 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 
 // filterVisibleMessages filters to visible user/assistant messages.
 func filterVisibleMessages(entries []transcriptEntry) []transcriptEntry {
-	var visible []transcriptEntry
+	visible := make([]transcriptEntry, 0, len(entries))
 	for _, entry := range entries {
 		entryType, ok := entry["type"].(string)
 		if !ok {
@@ -980,7 +987,7 @@ func filterVisibleMessages(entries []transcriptEntry) []transcriptEntry {
 
 // convertToSessionMessages converts transcript entries to SessionMessage objects.
 func convertToSessionMessages(entries []transcriptEntry) []types.SessionMessage {
-	var messages []types.SessionMessage
+	messages := make([]types.SessionMessage, 0, len(entries))
 	for _, entry := range entries {
 		msgType, _ := entry["type"].(string)
 		uuid, _ := entry["uuid"].(string)

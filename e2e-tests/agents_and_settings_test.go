@@ -52,7 +52,7 @@ func TestAgentDefinitionWithInit(t *testing.T) {
 	t.Log("Connected successfully")
 
 	// Create message channel once and reuse for all queries
-	msgChan := client.ReceiveMessages(bgCtx)
+	msgChan := client.ReceiveMessages(ctx)
 
 	t.Log("Sending query: What is 2 + 2?")
 	if err := client.Query(ctx, "What is 2 + 2?"); err != nil {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/unitsvc/claude-agent-sdk-golang/errors"
@@ -37,6 +38,10 @@ type Client struct {
 	// Cached message channel for fan-out to multiple subscribers
 	messageChan     <-chan types.Message
 	messageChanOnce bool
+
+	// Goroutine management for channel prompts
+	wg     sync.WaitGroup
+	cancel context.CancelFunc
 }
 
 // New creates a new Claude SDK client with default options.
@@ -236,11 +241,28 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 				return fmt.Errorf("failed to end input: %w", err)
 			}
 		case chan map[string]interface{}:
-			// For channel prompts, stream input in background
+			// For channel prompts, stream input in background with proper lifecycle management
+			ctx, cancel := context.WithCancel(context.Background())
+			c.cancel = cancel
+			c.wg.Add(1)
 			go func() {
-				for msg := range p {
-					data, _ := json.Marshal(msg)
-					c.transport.Write(ctx, string(data)+"\n")
+				defer c.wg.Done()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case msg, ok := <-p:
+						if !ok {
+							return
+						}
+						data, err := json.Marshal(msg)
+						if err != nil {
+							continue // Skip invalid messages
+						}
+						if err := c.transport.Write(ctx, string(data)+"\n"); err != nil {
+							return // Exit on write error
+						}
+					}
 				}
 			}()
 		}
@@ -817,6 +839,15 @@ func (c *Client) Disconnect(ctx context.Context) error {
 	if !c.connected {
 		return nil
 	}
+
+	// Cancel any running goroutines
+	if c.cancel != nil {
+		c.cancel()
+		c.cancel = nil
+	}
+
+	// Wait for goroutines to finish
+	c.wg.Wait()
 
 	var err error
 	if c.query != nil {
