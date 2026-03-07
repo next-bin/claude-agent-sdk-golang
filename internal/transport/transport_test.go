@@ -1644,3 +1644,118 @@ func TestBuildCommand_OutputFormat(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// Tests for fine-grained tool streaming (FGTS)
+// ============================================================================
+
+func TestBuildCommand_IncludePartialMessagesEnablesFGTS(t *testing.T) {
+	// Test that include_partial_messages=True sets CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=1
+	// --include-partial-messages tells the CLI to forward stream_event messages,
+	// but tool input parameters are still buffered by the API unless
+	// eager_input_streaming is enabled via this env var.
+	tmpDir := t.TempDir()
+	cliPath := filepath.Join(tmpDir, "claude")
+	if err := os.WriteFile(cliPath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
+		t.Fatalf("Failed to create mock CLI: %v", err)
+	}
+
+	options := &types.ClaudeAgentOptions{
+		CLIPath:                cliPath,
+		IncludePartialMessages: true,
+	}
+
+	transport, err := NewSubprocessCLITransport("test prompt", options, WithSkipVersionCheck(true))
+	if err != nil {
+		t.Fatalf("Failed to create transport: %v", err)
+	}
+
+	ctx := context.Background()
+	err = transport.Connect(ctx)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+	defer transport.Close(ctx)
+
+	// Check that FGTS env var is set
+	found := false
+	for _, env := range transport.cmd.Env {
+		if env == "CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=1 not set when include_partial_messages=true")
+	}
+}
+
+func TestBuildCommand_IncludePartialMessagesFalseDoesNotSetFGTS(t *testing.T) {
+	// Test that include_partial_messages=False does not force-enable FGTS.
+	tmpDir := t.TempDir()
+	cliPath := filepath.Join(tmpDir, "claude")
+	if err := os.WriteFile(cliPath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
+		t.Fatalf("Failed to create mock CLI: %v", err)
+	}
+
+	options := &types.ClaudeAgentOptions{
+		CLIPath:                cliPath,
+		IncludePartialMessages: false,
+	}
+
+	transport, err := NewSubprocessCLITransport("test prompt", options, WithSkipVersionCheck(true))
+	if err != nil {
+		t.Fatalf("Failed to create transport: %v", err)
+	}
+
+	ctx := context.Background()
+	err = transport.Connect(ctx)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+	defer transport.Close(ctx)
+
+	// Check that FGTS env var is NOT set
+	for _, env := range transport.cmd.Env {
+		if strings.HasPrefix(env, "CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=") {
+			t.Errorf("CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING should not be set when include_partial_messages=false, got: %s", env)
+		}
+	}
+}
+
+func TestBuildCommand_UserCanOverrideFGTSEnvVar(t *testing.T) {
+	// Test that a user-supplied env var takes precedence over the SDK default.
+	tmpDir := t.TempDir()
+	cliPath := filepath.Join(tmpDir, "claude")
+	if err := os.WriteFile(cliPath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
+		t.Fatalf("Failed to create mock CLI: %v", err)
+	}
+
+	options := &types.ClaudeAgentOptions{
+		CLIPath:                cliPath,
+		IncludePartialMessages: true,
+		Env: map[string]string{
+			"CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING": "0",
+		},
+	}
+
+	transport, err := NewSubprocessCLITransport("test prompt", options, WithSkipVersionCheck(true))
+	if err != nil {
+		t.Fatalf("Failed to create transport: %v", err)
+	}
+
+	ctx := context.Background()
+	err = transport.Connect(ctx)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+	defer transport.Close(ctx)
+
+	// Check that user's "0" value is preserved (not overwritten by SDK default "1")
+	for _, env := range transport.cmd.Env {
+		if env == "CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=0" {
+			return // Success - user override worked
+		}
+	}
+	t.Error("User's CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=0 was not preserved")
+}

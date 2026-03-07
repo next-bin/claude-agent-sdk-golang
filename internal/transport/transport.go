@@ -604,6 +604,24 @@ func (t *SubprocessCLITransport) Connect(ctx context.Context) error {
 		processEnv = append(processEnv, "CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true")
 	}
 
+	// Enable fine-grained tool streaming when partial messages are requested.
+	// --include-partial-messages emits stream_event messages, but tool input
+	// parameters are still buffered by the API unless eager_input_streaming is
+	// also enabled at the per-tool level via this env var.
+	// User-supplied value in options.Env takes precedence (setdefault pattern).
+	if t.options.IncludePartialMessages {
+		hasUserFGTS := false
+		for _, env := range processEnv {
+			if strings.HasPrefix(env, "CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=") {
+				hasUserFGTS = true
+				break
+			}
+		}
+		if !hasUserFGTS {
+			processEnv = append(processEnv, "CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=1")
+		}
+	}
+
 	// Set PWD for cwd if specified
 	if t.cwd != "" {
 		processEnv = append(processEnv, fmt.Sprintf("PWD=%s", t.cwd))
