@@ -7,11 +7,10 @@ import (
 )
 
 // ============================================================================
-// Rate Limit Event and Forward Compatibility Tests
+// Rate Limit Event Tests
 // ============================================================================
 
-func TestRateLimitEventReturnsNil(t *testing.T) {
-	// rate_limit_event should be silently skipped, not crash
+func TestParseRateLimitEvent(t *testing.T) {
 	data := map[string]interface{}{
 		"type": "rate_limit_event",
 		"rate_limit_info": map[string]interface{}{
@@ -27,16 +26,41 @@ func TestRateLimitEventReturnsNil(t *testing.T) {
 
 	result, err := ParseMessage(data)
 	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if result != nil {
-		t.Error("Expected nil for rate_limit_event (forward compatibility)")
+	if result == nil {
+		t.Fatal("Expected non-nil result for rate_limit_event")
+	}
+
+	// Verify it's a RateLimitEvent
+	event, ok := result.(*types.RateLimitEvent)
+	if !ok {
+		t.Fatalf("Expected RateLimitEvent type, got %T", result)
+	}
+
+	// Verify fields
+	if event.UUID != "550e8400-e29b-41d4-a716-446655440000" {
+		t.Errorf("Expected UUID '550e8400-e29b-41d4-a716-446655440000', got %s", event.UUID)
+	}
+	if event.SessionID != "test-session-id" {
+		t.Errorf("Expected SessionID 'test-session-id', got %s", event.SessionID)
+	}
+	if event.RateLimitInfo.Status != types.RateLimitStatusAllowedWarning {
+		t.Errorf("Expected status 'allowed_warning', got %s", event.RateLimitInfo.Status)
+	}
+	if event.RateLimitInfo.ResetsAt == nil || *event.RateLimitInfo.ResetsAt != 1700000000 {
+		t.Errorf("Expected ResetsAt 1700000000, got %v", event.RateLimitInfo.ResetsAt)
+	}
+	if event.RateLimitInfo.RateLimitType == nil || *event.RateLimitInfo.RateLimitType != types.RateLimitTypeFiveHour {
+		t.Errorf("Expected RateLimitType 'five_hour', got %v", event.RateLimitInfo.RateLimitType)
+	}
+	if event.RateLimitInfo.Utilization == nil || *event.RateLimitInfo.Utilization != 0.85 {
+		t.Errorf("Expected Utilization 0.85, got %v", event.RateLimitInfo.Utilization)
 	}
 }
 
-func TestRateLimitEventRejectedReturnsNil(t *testing.T) {
-	// Hard rate limit (status=rejected) should also be skipped
+func TestParseRateLimitEventRejected(t *testing.T) {
 	data := map[string]interface{}{
 		"type": "rate_limit_event",
 		"rate_limit_info": map[string]interface{}{
@@ -53,13 +77,124 @@ func TestRateLimitEventRejectedReturnsNil(t *testing.T) {
 
 	result, err := ParseMessage(data)
 	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if result != nil {
-		t.Error("Expected nil for rejected rate_limit_event (forward compatibility)")
+	if result == nil {
+		t.Fatal("Expected non-nil result for rate_limit_event")
+	}
+
+	event, ok := result.(*types.RateLimitEvent)
+	if !ok {
+		t.Fatalf("Expected RateLimitEvent type, got %T", result)
+	}
+
+	if event.RateLimitInfo.Status != types.RateLimitStatusRejected {
+		t.Errorf("Expected status 'rejected', got %s", event.RateLimitInfo.Status)
+	}
+	if event.RateLimitInfo.OverageStatus == nil || *event.RateLimitInfo.OverageStatus != types.RateLimitStatusRejected {
+		t.Errorf("Expected OverageStatus 'rejected', got %v", event.RateLimitInfo.OverageStatus)
+	}
+	if event.RateLimitInfo.OverageDisabledReason == nil || *event.RateLimitInfo.OverageDisabledReason != "out_of_credits" {
+		t.Errorf("Expected OverageDisabledReason 'out_of_credits', got %v", event.RateLimitInfo.OverageDisabledReason)
 	}
 }
+
+func TestParseRateLimitEventMinimal(t *testing.T) {
+	// Minimal rate limit event with only required fields
+	data := map[string]interface{}{
+		"type": "rate_limit_event",
+		"rate_limit_info": map[string]interface{}{
+			"status": "allowed",
+		},
+		"uuid":       "770e8400-e29b-41d4-a716-446655440002",
+		"session_id": "test-session-id",
+	}
+
+	result, err := ParseMessage(data)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected non-nil result for rate_limit_event")
+	}
+
+	event, ok := result.(*types.RateLimitEvent)
+	if !ok {
+		t.Fatalf("Expected RateLimitEvent type, got %T", result)
+	}
+
+	if event.RateLimitInfo.Status != types.RateLimitStatusAllowed {
+		t.Errorf("Expected status 'allowed', got %s", event.RateLimitInfo.Status)
+	}
+	// Optional fields should be nil
+	if event.RateLimitInfo.ResetsAt != nil {
+		t.Errorf("Expected ResetsAt to be nil, got %v", event.RateLimitInfo.ResetsAt)
+	}
+	if event.RateLimitInfo.RateLimitType != nil {
+		t.Errorf("Expected RateLimitType to be nil, got %v", event.RateLimitInfo.RateLimitType)
+	}
+}
+
+func TestParseRateLimitEventMissingRequiredFields(t *testing.T) {
+	testCases := []struct {
+		name string
+		data map[string]interface{}
+	}{
+		{
+			name: "missing_uuid",
+			data: map[string]interface{}{
+				"type": "rate_limit_event",
+				"rate_limit_info": map[string]interface{}{
+					"status": "allowed",
+				},
+				"session_id": "test-session-id",
+			},
+		},
+		{
+			name: "missing_session_id",
+			data: map[string]interface{}{
+				"type": "rate_limit_event",
+				"rate_limit_info": map[string]interface{}{
+					"status": "allowed",
+				},
+				"uuid": "770e8400-e29b-41d4-a716-446655440002",
+			},
+		},
+		{
+			name: "missing_rate_limit_info",
+			data: map[string]interface{}{
+				"type":       "rate_limit_event",
+				"uuid":       "770e8400-e29b-41d4-a716-446655440002",
+				"session_id": "test-session-id",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseMessage(tc.data)
+			if err == nil {
+				t.Error("Expected error for missing required field")
+			}
+		})
+	}
+}
+
+func TestRateLimitEventGetSessionID(t *testing.T) {
+	event := &types.RateLimitEvent{
+		SessionID: "test-session-123",
+	}
+
+	if event.GetSessionID() != "test-session-123" {
+		t.Errorf("Expected GetSessionID to return 'test-session-123', got %s", event.GetSessionID())
+	}
+}
+
+// ============================================================================
+// Forward Compatibility Tests
+// ============================================================================
 
 func TestUnknownMessageTypesAreHandled(t *testing.T) {
 	// All unknown message types should return nil for forward compatibility
@@ -123,21 +258,6 @@ func TestKnownMessageTypesStillParsed(t *testing.T) {
 	}
 }
 
-func TestParseMessageWithMissingFields(t *testing.T) {
-	// Test that messages with missing optional fields don't crash
-	data := map[string]interface{}{
-		"type": "result",
-		// Missing many optional fields
-	}
-
-	result, err := ParseMessage(data)
-	// Should not error, should handle gracefully
-	if err != nil {
-		t.Logf("Result message with missing fields returned error (acceptable): %v", err)
-	}
-	_ = result
-}
-
 func TestParseMessageWithExtraFields(t *testing.T) {
 	// Test that messages with extra unknown fields are handled
 	data := map[string]interface{}{
@@ -164,46 +284,5 @@ func TestParseMessageWithExtraFields(t *testing.T) {
 
 	if result == nil {
 		t.Error("Expected non-nil result for message with extra fields")
-	}
-}
-
-func TestRateLimitEventVariations(t *testing.T) {
-	// Test various rate limit event configurations
-	variations := []map[string]interface{}{
-		{
-			"type": "rate_limit_event",
-			"rate_limit_info": map[string]interface{}{
-				"status": "allowed",
-			},
-		},
-		{
-			"type": "rate_limit_event",
-			"rate_limit_info": map[string]interface{}{
-				"status":    "warning",
-				"resetTime": "2024-01-01T00:00:00Z",
-			},
-		},
-		{
-			"type": "rate_limit_event",
-			"rate_limit_info": map[string]interface{}{
-				"status":         "blocked",
-				"retryAfter":     3600,
-				"rateLimitType":  "daily",
-				"utilization":    1.0,
-				"isUsingOverage": true,
-			},
-		},
-	}
-
-	for i, data := range variations {
-		t.Run(string(rune('A'+i)), func(t *testing.T) {
-			result, err := ParseMessage(data)
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-			if result != nil {
-				t.Error("Expected nil for rate_limit_event")
-			}
-		})
 	}
 }

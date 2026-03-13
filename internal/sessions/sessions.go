@@ -1053,3 +1053,260 @@ func convertToSessionMessages(entries []transcriptEntry) []types.SessionMessage 
 	}
 	return messages
 }
+
+// ============================================================================
+// Session Mutations (v0.1.49)
+// ============================================================================
+
+// RenameSession renames a session by appending a custom-title entry.
+//
+// ListSessions reads the LAST custom-title from the file tail, so
+// repeated calls are safe — the most recent wins.
+//
+// Parameters:
+//   - sessionID: UUID of the session to rename.
+//   - title: New session title. Leading/trailing whitespace is stripped.
+//     Must be non-empty after stripping.
+//   - directory: Project directory path (same semantics as ListSessions).
+//     When empty, all project directories are searched for the session file.
+//
+// Returns an error if:
+//   - sessionID is not a valid UUID
+//   - title is empty/whitespace-only
+//   - the session file cannot be found
+func RenameSession(sessionID, title, directory string) error {
+	if !isValidUUID(sessionID) {
+		return fmt.Errorf("invalid session_id: %s", sessionID)
+	}
+
+	// Matches CLI guard — empty/whitespace titles are rejected rather than
+	// overloaded as "clear title".
+	stripped := strings.TrimSpace(title)
+	if stripped == "" {
+		return fmt.Errorf("title must be non-empty")
+	}
+
+	data := fmt.Sprintf(`{"type":"custom-title","customTitle":%q,"sessionId":%q}%s`,
+		stripped, sessionID, "\n")
+
+	return appendToSession(sessionID, data, directory)
+}
+
+// TagSession tags a session. Pass empty string to clear the tag.
+//
+// Appends a {"type":"tag","tag":<tag>,"sessionId":<id>} JSONL entry.
+// ListSessions reads the LAST tag from the file tail — most recent wins.
+// Passing empty string appends an empty-string tag entry which is treated
+// as cleared.
+//
+// Tags are Unicode-sanitized before storing (removes zero-width chars,
+// directional marks, private-use characters, etc.) for CLI filter
+// compatibility.
+//
+// Parameters:
+//   - sessionID: UUID of the session to tag.
+//   - tag: Tag string, or empty string to clear. Leading/trailing whitespace
+//     is stripped. Must be non-empty after sanitization and stripping
+//     (unless clearing).
+//   - directory: Project directory path (same semantics as ListSessions).
+//     When empty, all project directories are searched for the session file.
+//
+// Returns an error if:
+//   - sessionID is not a valid UUID
+//   - tag is empty/whitespace-only after sanitization (and not clearing)
+//   - the session file cannot be found
+func TagSession(sessionID, tag, directory string) error {
+	if !isValidUUID(sessionID) {
+		return fmt.Errorf("invalid session_id: %s", sessionID)
+	}
+
+	var tagValue string
+	if tag != "" {
+		sanitized := sanitizeUnicode(tag)
+		stripped := strings.TrimSpace(sanitized)
+		if stripped == "" {
+			return fmt.Errorf("tag must be non-empty (use empty string to clear)")
+		}
+		tagValue = stripped
+	}
+	// Empty tagValue means clear the tag
+
+	data := fmt.Sprintf(`{"type":"tag","tag":%q,"sessionId":%q}%s`,
+		tagValue, sessionID, "\n")
+
+	return appendToSession(sessionID, data, directory)
+}
+
+// appendToSession appends data to an existing session file.
+//
+// Searches candidate paths and tries the append directly — no existence check.
+// Uses O_WRONLY | O_APPEND (without O_CREAT) so the open fails with ENOENT
+// for missing files, avoiding TOCTOU.
+func appendToSession(sessionID, data, directory string) error {
+	fileName := sessionID + ".jsonl"
+
+	if directory != "" {
+		canonical := normalizePath(directory)
+
+		// Try the exact/prefix-matched project directory first.
+		projectDir := findProjectDir(canonical)
+		if projectDir != "" && tryAppend(filepath.Join(projectDir, fileName), data) {
+			return nil
+		}
+
+		// Worktree fallback — matches ListSessions/GetSessionMessages.
+		// Sessions may live under a different worktree root.
+		worktreePaths := getWorktreePaths(canonical)
+		for _, wt := range worktreePaths {
+			if wt == canonical {
+				continue // already tried above
+			}
+			wtProjectDir := findProjectDir(wt)
+			if wtProjectDir != "" && tryAppend(filepath.Join(wtProjectDir, fileName), data) {
+				return nil
+			}
+		}
+
+		return fmt.Errorf("session %s not found in project directory for %s", sessionID, directory)
+	}
+
+	// No directory — search all project directories by trying each directly.
+	projectsDir := getProjectsDir()
+	dirents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return fmt.Errorf("session %s not found (no projects directory)", sessionID)
+	}
+
+	for _, entry := range dirents {
+		if tryAppend(filepath.Join(projectsDir, entry.Name(), fileName), data) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("session %s not found in any project directory", sessionID)
+}
+
+// tryAppend tries appending to a path.
+//
+// Opens with O_WRONLY | O_APPEND (no O_CREAT), so the open fails with ENOENT
+// if the file does not exist — no separate existence check.
+//
+// Returns true on successful write, false if the file does not exist or is 0-byte.
+// A 0-byte .jsonl is a "session not here, keep searching" signal.
+func tryAppend(path, data string) bool {
+	// Open with append mode, no create
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	// Check file size - skip empty files
+	stat, err := f.Stat()
+	if err != nil || stat.Size() == 0 {
+		return false
+	}
+
+	_, err = f.WriteString(data)
+	return err == nil
+}
+
+// ============================================================================
+// Unicode Sanitization
+// ============================================================================
+
+// sanitizeUnicode sanitizes a string by removing dangerous Unicode characters.
+//
+// Ported from TypeScript partiallySanitizeUnicode. Iteratively applies NFKC
+// normalization and strips format/private-use/unassigned characters until
+// no more changes occur (max 10 iterations).
+func sanitizeUnicode(value string) string {
+	current := value
+	for i := 0; i < 10; i++ {
+		previous := current
+
+		// Apply NFKC normalization to handle composed character sequences
+		current = strings.ToValidUTF8(current, "")
+
+		// Strip dangerous Unicode characters
+		current = stripDangerousUnicode(current)
+
+		// Strip format, private use, and unassigned category characters
+		current = stripUnicodeCategories(current)
+
+		if current == previous {
+			break
+		}
+	}
+	return current
+}
+
+// stripDangerousUnicode removes known dangerous Unicode character ranges.
+func stripDangerousUnicode(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	for _, r := range s {
+		// Skip dangerous ranges
+		switch {
+		case r >= '\u200b' && r <= '\u200f': // Zero-width spaces, LTR/RTL marks
+			continue
+		case r >= '\u202a' && r <= '\u202e': // Directional formatting characters
+			continue
+		case r >= '\u2066' && r <= '\u2069': // Directional isolates
+			continue
+		case r == '\ufeff': // Byte order mark
+			continue
+		case r >= '\ue000' && r <= '\uf8ff': // BMP private use
+			continue
+		}
+		b.WriteRune(r)
+	}
+
+	return b.String()
+}
+
+// stripUnicodeCategories removes characters in Cf (format), Co (private use), Cn (unassigned).
+func stripUnicodeCategories(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	for _, r := range s {
+		cat := unicodeCategory(r)
+		if cat == "Cf" || cat == "Co" || cat == "Cn" {
+			continue
+		}
+		b.WriteRune(r)
+	}
+
+	return b.String()
+}
+
+// unicodeCategory returns the Unicode category for a rune.
+// This is a simplified implementation that checks common format characters.
+func unicodeCategory(r rune) string {
+	// Common format characters (Cf category)
+	switch r {
+	case '\u00AD', '\u034F', '\u1806', '\u180B', '\u180C', '\u180D', '\u180E',
+		'\u200B', '\u200C', '\u200D', '\u200E', '\u200F',
+		'\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+		'\u2060', '\u2061', '\u2062', '\u2063', '\u2064', '\u2066', '\u2067', '\u2068', '\u2069',
+		'\uFE00', '\uFE01', '\uFE02', '\uFE03', '\uFE04', '\uFE05', '\uFE06', '\uFE07',
+		'\uFE08', '\uFE09', '\uFE0A', '\uFE0B', '\uFE0C', '\uFE0D', '\uFE0E', '\uFE0F',
+		'\uFEFF', '\uFFF9', '\uFFFA', '\uFFFB':
+		return "Cf"
+	}
+
+	// Private use areas (Co category) - Supplementary Private Use Area-A and B
+	// Use numeric comparison to avoid invalid Unicode escape issues
+	if r >= 0xE000 && r <= 0xF8FF {
+		return "Co"
+	}
+	if r >= 0xF0000 && r <= 0x10FFFF {
+		// This covers supplementary private use areas
+		return "Co"
+	}
+
+	// Default: assume it's a regular character
+	return "Lo"
+}

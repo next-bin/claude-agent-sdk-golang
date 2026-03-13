@@ -38,6 +38,8 @@ func ParseMessage(data map[string]interface{}) (types.Message, error) {
 		return parseResultMessage(data)
 	case "stream_event":
 		return parseStreamEvent(data)
+	case "rate_limit_event":
+		return parseRateLimitEvent(data)
 	default:
 		// Forward-compatible: skip unrecognized message types so newer
 		// CLI versions don't crash older SDK versions.
@@ -670,4 +672,89 @@ func parseStreamEvent(data map[string]interface{}) (*types.StreamEvent, error) {
 		Event:           event,
 		ParentToolUseID: parentToolUseID,
 	}, nil
+}
+
+// parseRateLimitEvent parses a rate_limit_event message.
+func parseRateLimitEvent(data map[string]interface{}) (*types.RateLimitEvent, error) {
+	uuid, ok := data["uuid"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"RateLimitEvent missing 'uuid' field",
+			data,
+		)
+	}
+
+	sessionID, ok := data["session_id"].(string)
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"RateLimitEvent missing 'session_id' field",
+			data,
+		)
+	}
+
+	infoData, ok := data["rate_limit_info"].(map[string]interface{})
+	if !ok {
+		return nil, errors.NewMessageParseError(
+			"RateLimitEvent missing 'rate_limit_info' field",
+			data,
+		)
+	}
+
+	info, err := parseRateLimitInfo(infoData)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.RateLimitEvent{
+		RateLimitInfo: info,
+		UUID:          uuid,
+		SessionID:     sessionID,
+	}, nil
+}
+
+// parseRateLimitInfo parses rate limit info from the CLI response.
+func parseRateLimitInfo(data map[string]interface{}) (types.RateLimitInfo, error) {
+	status, ok := data["status"].(string)
+	if !ok {
+		return types.RateLimitInfo{}, errors.NewMessageParseError(
+			"RateLimitInfo missing 'status' field",
+			data,
+		)
+	}
+
+	info := types.RateLimitInfo{
+		Status: types.RateLimitStatus(status),
+		Raw:    data,
+	}
+
+	// Parse optional fields
+	if resetsAt, ok := data["resetsAt"].(float64); ok {
+		v := int(resetsAt)
+		info.ResetsAt = &v
+	}
+
+	if rateLimitType, ok := data["rateLimitType"].(string); ok {
+		t := types.RateLimitType(rateLimitType)
+		info.RateLimitType = &t
+	}
+
+	if utilization, ok := data["utilization"].(float64); ok {
+		info.Utilization = &utilization
+	}
+
+	if overageStatus, ok := data["overageStatus"].(string); ok {
+		s := types.RateLimitStatus(overageStatus)
+		info.OverageStatus = &s
+	}
+
+	if overageResetsAt, ok := data["overageResetsAt"].(float64); ok {
+		v := int(overageResetsAt)
+		info.OverageResetsAt = &v
+	}
+
+	if overageDisabledReason, ok := data["overageDisabledReason"].(string); ok {
+		info.OverageDisabledReason = &overageDisabledReason
+	}
+
+	return info, nil
 }

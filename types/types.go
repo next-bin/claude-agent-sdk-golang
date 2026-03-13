@@ -1002,6 +1002,64 @@ type StreamEvent struct {
 	ParentToolUseID *string                `json:"parent_tool_use_id,omitempty"`
 }
 
+// ============================================================================
+// Rate Limit Types - see https://docs.claude.com/en/docs/claude-code/rate-limits
+// ============================================================================
+
+// RateLimitStatus represents the current rate limit status.
+type RateLimitStatus string
+
+const (
+	RateLimitStatusAllowed        RateLimitStatus = "allowed"
+	RateLimitStatusAllowedWarning RateLimitStatus = "allowed_warning"
+	RateLimitStatusRejected       RateLimitStatus = "rejected"
+)
+
+// RateLimitType represents the type of rate limit window.
+type RateLimitType string
+
+const (
+	RateLimitTypeFiveHour       RateLimitType = "five_hour"
+	RateLimitTypeSevenDay       RateLimitType = "seven_day"
+	RateLimitTypeSevenDayOpus   RateLimitType = "seven_day_opus"
+	RateLimitTypeSevenDaySonnet RateLimitType = "seven_day_sonnet"
+	RateLimitTypeOverage        RateLimitType = "overage"
+)
+
+// RateLimitInfo represents rate limit status emitted by the CLI when rate limit state changes.
+//
+// Attributes:
+//   - Status: Current rate limit status. "allowed_warning" means approaching the limit;
+//     "rejected" means the limit has been hit.
+//   - ResetsAt: Unix timestamp when the rate limit window resets.
+//   - RateLimitType: Which rate limit window applies.
+//   - Utilization: Fraction of the rate limit consumed (0.0 - 1.0).
+//   - OverageStatus: Status of overage/pay-as-you-go usage if applicable.
+//   - OverageResetsAt: Unix timestamp when overage window resets.
+//   - OverageDisabledReason: Why overage is unavailable if status is rejected.
+//   - Raw: Full raw dict from the CLI, including any fields not modeled above.
+type RateLimitInfo struct {
+	Status                RateLimitStatus        `json:"status"`
+	ResetsAt              *int                   `json:"resetsAt,omitempty"`
+	RateLimitType         *RateLimitType         `json:"rateLimitType,omitempty"`
+	Utilization           *float64               `json:"utilization,omitempty"`
+	OverageStatus         *RateLimitStatus       `json:"overageStatus,omitempty"`
+	OverageResetsAt       *int                   `json:"overageResetsAt,omitempty"`
+	OverageDisabledReason *string                `json:"overageDisabledReason,omitempty"`
+	Raw                   map[string]interface{} `json:"-"`
+}
+
+// RateLimitEvent represents a rate limit event emitted when rate limit info changes.
+//
+// The CLI emits this whenever the rate limit status transitions (e.g. from "allowed"
+// to "allowed_warning"). Use this to warn users before they hit a hard limit, or to
+// gracefully back off when status == "rejected".
+type RateLimitEvent struct {
+	RateLimitInfo RateLimitInfo `json:"rate_limit_info"`
+	UUID          string        `json:"uuid"`
+	SessionID     string        `json:"session_id"`
+}
+
 // Message is a union type for all message types.
 type Message interface {
 	GetSessionID() string
@@ -1021,6 +1079,9 @@ func (m ResultMessage) GetSessionID() string { return m.SessionID }
 
 // GetSessionID returns the session ID for StreamEvent.
 func (m StreamEvent) GetSessionID() string { return m.SessionID }
+
+// GetSessionID returns the session ID for RateLimitEvent.
+func (m RateLimitEvent) GetSessionID() string { return m.SessionID }
 
 // ============================================================================
 // Thinking Configuration Types
