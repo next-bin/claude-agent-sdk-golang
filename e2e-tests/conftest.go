@@ -22,8 +22,12 @@ import (
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
-// SkipIfNoAPIKey skips the test if no API key is configured.
+// SkipIfNoAPIKey skips the test if no API key is configured or if running in short mode.
+// Use -short flag to skip E2E tests: go test -short ./...
 func SkipIfNoAPIKey(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
 	if !HasAPIKey() {
 		t.Skip("Skipping: No API key configured")
 	}

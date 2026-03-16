@@ -217,3 +217,29 @@ func ListSessions(directory string, limit int, includeWorktrees bool) ([]types.S
 func GetSessionMessages(sessionID, directory string, limit, offset int) ([]types.SessionMessage, error) {
 	return sessions.GetSessionMessages(sessionID, directory, limit, offset)
 }
+
+// ============================================================================
+// Session Mutations API (v0.1.49+)
+// ============================================================================
+
+// RenameSession renames a session by appending a custom-title entry.
+// list_sessions reads the LAST custom-title from the file tail, so repeated calls are safe.
+//
+// Example:
+//
+//	err := claude.RenameSession("550e8400-e29b-41d4-a716-446655440000", "My refactoring session", "/path/to/project")
+func RenameSession(sessionID, title, directory string) error {
+	return sessions.RenameSession(sessionID, title, directory)
+}
+
+// TagSession tags a session. Pass empty string to clear the tag.
+// list_sessions reads the LAST tag from the file tail, so repeated calls are safe.
+//
+// Tags are Unicode-sanitized before storing for CLI filter compatibility.
+//
+// Example:
+//
+//	err := claude.TagSession("550e8400-e29b-41d4-a716-446655440000", "experiment", "/path/to/project")
+func TagSession(sessionID, tag, directory string) error {
+	return sessions.TagSession(sessionID, tag, directory)
+}

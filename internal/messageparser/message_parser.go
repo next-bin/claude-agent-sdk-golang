@@ -295,11 +295,18 @@ func parseAssistantMessage(data map[string]interface{}) (*types.AssistantMessage
 		assistantErr = &err
 	}
 
+	// Parse usage field (v0.1.48+)
+	var usage map[string]interface{}
+	if u, ok := data["usage"].(map[string]interface{}); ok {
+		usage = u
+	}
+
 	return &types.AssistantMessage{
 		Content:         contentBlocks,
 		Model:           model,
 		ParentToolUseID: parentToolUseID,
 		Error:           assistantErr,
+		Usage:           usage,
 	}, nil
 }
 

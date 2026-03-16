@@ -23,6 +23,7 @@ func TestPermissionModeConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if string(tt.mode) != tt.expected {
 				t.Errorf("PermissionMode %s = %q, want %q", tt.name, tt.mode, tt.expected)
 			}
@@ -43,6 +44,7 @@ func TestPermissionModeJSONRoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			data, err := json.Marshal(tt.mode)
 			if err != nil {
 				t.Fatalf("Failed to marshal PermissionMode: %v", err)
@@ -77,6 +79,7 @@ func TestPermissionBehaviorConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if string(tt.behavior) != tt.expected {
 				t.Errorf("PermissionBehavior %s = %q, want %q", tt.name, tt.behavior, tt.expected)
 			}
@@ -102,6 +105,7 @@ func TestPermissionUpdateDestinationConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if string(tt.destination) != tt.expected {
 				t.Errorf("PermissionUpdateDestination %s = %q, want %q", tt.name, tt.destination, tt.expected)
 			}

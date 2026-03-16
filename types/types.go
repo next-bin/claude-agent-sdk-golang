@@ -77,7 +77,32 @@ type AgentDefinition struct {
 	Prompt      string   `json:"prompt"`
 	Tools       []string `json:"tools,omitempty"`
 	Model       *string  `json:"model,omitempty"` // "sonnet", "opus", "haiku", or "inherit"
+	// New fields added in v0.1.48+ (PR #684)
+	Skills     []string               `json:"skills,omitempty"`
+	Memory     *string                `json:"memory,omitempty"` // "user", "project", or "local"
+	McpServers []McpServerRefOrConfig `json:"mcpServers,omitempty"`
 }
+
+// McpServerRefOrConfig represents either a server name reference or an inline config.
+// This is used for AgentDefinition.McpServers where each entry can be:
+// - A string (reference to an already-configured server by name)
+// - An inline {name: config} dict (stdio/sse/http only)
+type McpServerRefOrConfig interface {
+	isMcpServerRefOrConfig()
+}
+
+// McpServerRef is a reference to an already-configured MCP server by name.
+type McpServerRef string
+
+func (McpServerRef) isMcpServerRefOrConfig() {}
+
+// McpServerInlineConfig is an inline MCP server configuration for subagents.
+type McpServerInlineConfig struct {
+	Name   string                 `json:"name"`
+	Config map[string]interface{} `json:"config"`
+}
+
+func (McpServerInlineConfig) isMcpServerRefOrConfig() {}
 
 // ============================================================================
 // Permission Update Types
@@ -915,6 +940,7 @@ type AssistantMessage struct {
 	Model           string                 `json:"model"`
 	ParentToolUseID *string                `json:"parent_tool_use_id,omitempty"`
 	Error           *AssistantMessageError `json:"error,omitempty"`
+	Usage           map[string]interface{} `json:"usage,omitempty"` // Per-turn usage from CLI (v0.1.48+)
 }
 
 // SystemMessage represents a system message with metadata.

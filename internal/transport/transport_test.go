@@ -275,6 +275,7 @@ func TestBuildCommand_BasicArguments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			transport, err := NewSubprocessCLITransport("test prompt", tt.options, WithSkipVersionCheck(true))
 			if err != nil {
 				t.Fatalf("Failed to create transport: %v", err)
@@ -347,6 +348,7 @@ func TestBuildCommand_AddDirs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			options := &types.ClaudeAgentOptions{
 				AddDirs: tt.addDirs,
 			}
@@ -409,6 +411,7 @@ func TestBuildCommand_ExtraArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			options := &types.ClaudeAgentOptions{
 				ExtraArgs: tt.extraArgs,
 			}
@@ -1002,10 +1005,11 @@ func TestCheckClaudeVersion_ValidVersion(t *testing.T) {
 }
 
 func TestCheckClaudeVersion_Timeout(t *testing.T) {
-	// Create a mock script that hangs
+	// Create a mock script that hangs (but not too long to avoid slow tests)
 	tmpDir := t.TempDir()
 	cliPath := filepath.Join(tmpDir, "claude")
-	script := "#!/bin/sh\nsleep 10\necho '2.0.0'"
+	// Use a shorter sleep - we just need to verify timeout behavior, not wait for full sleep
+	script := "#!/bin/sh\nsleep 1\necho '2.0.0'"
 	if err := os.WriteFile(cliPath, []byte(script), 0755); err != nil {
 		t.Fatalf("Failed to create mock CLI: %v", err)
 	}
