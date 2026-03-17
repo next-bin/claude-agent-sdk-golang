@@ -81,9 +81,6 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		return nil
 	}
 
-	// Set entrypoint environment variable
-	os.Setenv("CLAUDE_CODE_ENTRYPOINT", "sdk-go-client")
-
 	options := c.options
 
 	// Validate and configure permission settings

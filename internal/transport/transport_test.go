@@ -1423,6 +1423,17 @@ func TestBuildCommand_EnvironmentVariables(t *testing.T) {
 				"CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true",
 			},
 		},
+		{
+			name: "caller can override entrypoint",
+			env: map[string]string{
+				"CLAUDE_CODE_ENTRYPOINT": "custom-caller",
+			},
+			enableFileCheckpoint: false,
+			wantEnvVars: []string{
+				"CLAUDE_CODE_ENTRYPOINT=custom-caller",
+			},
+			wantNotEnvVars: []string{"CLAUDE_CODE_ENTRYPOINT=sdk-go"},
+		},
 	}
 
 	for _, tt := range tests {

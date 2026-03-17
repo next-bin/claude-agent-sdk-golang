@@ -581,7 +581,9 @@ func (t *SubprocessCLITransport) Connect(ctx context.Context) error {
 		t.cmd.Dir = t.cwd
 	}
 
-	// Merge environment variables: system -> user -> SDK required
+	// Merge environment variables. CLAUDE_CODE_ENTRYPOINT defaults to
+	// sdk-go regardless of inherited process env; options.env can override it.
+	// CLAUDE_AGENT_SDK_VERSION is always set by the SDK.
 	// Start with system environment but filter out CLAUDECODE to allow nested SDK sessions
 	envs := os.Environ()
 	// Pre-allocate with extra capacity for custom env vars
@@ -593,10 +595,11 @@ func (t *SubprocessCLITransport) Connect(ctx context.Context) error {
 		}
 		processEnv = append(processEnv, env)
 	}
+	// Set default entrypoint before user options so it can be overridden
+	processEnv = append(processEnv, fmt.Sprintf("CLAUDE_CODE_ENTRYPOINT=%s", "sdk-go"))
 	for k, v := range t.options.Env {
 		processEnv = append(processEnv, fmt.Sprintf("%s=%s", k, v))
 	}
-	processEnv = append(processEnv, fmt.Sprintf("CLAUDE_CODE_ENTRYPOINT=%s", "sdk-go"))
 	processEnv = append(processEnv, fmt.Sprintf("CLAUDE_AGENT_SDK_VERSION=%s", SDKVersion))
 
 	// Enable file checkpointing if requested
