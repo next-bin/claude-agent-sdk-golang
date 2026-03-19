@@ -24,6 +24,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Constants matching Python SDK
@@ -35,6 +36,27 @@ const (
 	// Most filesystems limit individual components to 255 bytes.
 	MaxSanitizedLength = 200
 )
+
+// nfcNormalize applies Unicode NFC normalization to a string.
+// This matches Python's unicodedata.normalize("NFC", s) behavior.
+func nfcNormalize(s string) string {
+	// Fast path: if string is already valid UTF-8 and ASCII, no normalization needed
+	// Most paths are ASCII, so this avoids unnecessary work
+	isASCII := true
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			isASCII = false
+			break
+		}
+	}
+	if isASCII {
+		return s
+	}
+
+	// Use golang.org/x/text/unicode/norm for NFC normalization
+	// This is an imported package, not a local function
+	return norm.NFC.String(s)
+}
 
 // Regex patterns
 var (
@@ -112,22 +134,21 @@ func simpleHash(s string) string {
 	h := uint32(0)
 	for _, ch := range s {
 		h = (h << 5) - h + uint32(ch)
-	}
-
-	// Convert to int32 to emulate JS >>> 0 behavior
-	signed := int32(h)
-	if signed < 0 {
-		signed = -signed
+		// Emulate JS `hash |= 0` (coerce to 32-bit signed int)
+		h = h & 0xFFFFFFFF
+		if int32(h) < 0 {
+			h = uint32(-int32(h))
+		}
 	}
 
 	// Convert to base36
-	if signed == 0 {
+	if h == 0 {
 		return "0"
 	}
 
 	digits := "0123456789abcdefghijklmnopqrstuvwxyz"
 	out := make([]byte, 0, 8) // Pre-allocate: max 8 digits for uint32 in base36
-	n := uint32(signed)
+	n := h
 	for n > 0 {
 		out = append(out, digits[n%36])
 		n /= 36
@@ -183,8 +204,8 @@ func normalizePath(d string) string {
 		resolved = d
 	}
 
-	// Normalize unicode to NFC form
-	return strings.ToValidUTF8(resolved, "")
+	// Normalize unicode to NFC form (matching Python's unicodedata.normalize("NFC", ...))
+	return nfcNormalize(resolved)
 }
 
 // findProjectDir finds the project directory for a given path.
