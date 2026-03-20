@@ -1535,11 +1535,17 @@ type SDKSessionInfo struct {
 	// LastModified is the last modified time in milliseconds since epoch.
 	LastModified int64 `json:"last_modified"`
 
+	// CreatedAt is the session creation time in milliseconds since epoch.
+	CreatedAt *int64 `json:"created_at,omitempty"`
+
 	// FileSize is the session file size in bytes.
 	FileSize int64 `json:"file_size"`
 
 	// CustomTitle is the user-set session title via /rename.
 	CustomTitle *string `json:"custom_title,omitempty"`
+
+	// Tag is the session tag set via tag_session.
+	Tag *string `json:"tag,omitempty"`
 
 	// FirstPrompt is the first meaningful user prompt in the session.
 	FirstPrompt *string `json:"first_prompt,omitempty"`

@@ -330,6 +330,73 @@ func extractLastJSONStringField(text, key string) string {
 	return lastValue
 }
 
+// coalesce returns the first non-empty string from the provided arguments.
+func coalesce(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// extractTagFromTail extracts the tag value scoped to {"type":"tag"} lines.
+// This avoids matching "tag" in tool_use inputs (git tag, Docker tags, etc.).
+func extractTagFromTail(tail string) string {
+	// Find the last line that starts with {"type":"tag"
+	lines := strings.Split(tail, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(line, `{"type":"tag"`) {
+			return extractLastJSONStringField(line, "tag")
+		}
+	}
+	return ""
+}
+
+// extractTimestampFromFirstLine extracts timestamp from the first JSONL line only.
+// This avoids false matches from later entries in the head buffer.
+func extractTimestampFromFirstLine(firstLine string) int64 {
+	if firstLine == "" {
+		return 0
+	}
+	ts := extractJSONStringField(firstLine, "timestamp")
+	if ts == "" {
+		return 0
+	}
+	// Parse ISO timestamp and convert to epoch ms
+	return parseTimestamp(ts)
+}
+
+// parseTimestamp parses an ISO timestamp string and returns epoch milliseconds.
+func parseTimestamp(ts string) int64 {
+	// Remove timezone suffix for parsing
+	// Handle both "2024-01-15T10:30:00Z" and "2024-01-15T10:30:00.123Z" formats
+	cleanTs := ts
+	if strings.HasSuffix(ts, "Z") {
+		cleanTs = ts[:len(ts)-1]
+	} else if idx := strings.LastIndex(ts, "+"); idx > 0 {
+		cleanTs = ts[:idx]
+	} else if idx := strings.LastIndex(ts, "-"); idx > 0 && idx > 10 {
+		// Only strip timezone if after the date portion
+		cleanTs = ts[:idx]
+	}
+
+	// Try parsing with nanoseconds
+	t, err := time.Parse("2006-01-02T15:04:05.000000000", cleanTs)
+	if err != nil {
+		// Try with less precision
+		t, err = time.Parse("2006-01-02T15:04:05.000", cleanTs)
+		if err != nil {
+			t, err = time.Parse("2006-01-02T15:04:05", cleanTs)
+			if err != nil {
+				return 0
+			}
+		}
+	}
+	return t.UnixMilli()
+}
+
 // ============================================================================
 // First prompt extraction
 // ============================================================================
@@ -603,10 +670,24 @@ func readSessionsFromDir(projectDir, projectPath string) []types.SDKSessionInfo 
 			continue
 		}
 
-		customTitle := extractLastJSONStringField(lite.tail, "customTitle")
+		// Custom title chain: tail.customTitle || head.customTitle || tail.aiTitle || head.aiTitle
+		// User-set title (customTitle) wins over AI-generated title (aiTitle).
+		// Head fallback covers short sessions where the title entry may not be in tail.
+		customTitle := coalesce(
+			extractLastJSONStringField(lite.tail, "customTitle"),
+			extractLastJSONStringField(lite.head, "customTitle"),
+			extractLastJSONStringField(lite.tail, "aiTitle"),
+			extractLastJSONStringField(lite.head, "aiTitle"),
+		)
+
 		firstPrompt := extractFirstPromptFromHead(lite.head)
 
+		// Summary chain: customTitle || tail.lastPrompt || tail.summary || firstPrompt
+		// lastPrompt tail entry shows what the user was most recently doing.
 		summary := customTitle
+		if summary == "" {
+			summary = extractLastJSONStringField(lite.tail, "lastPrompt")
+		}
 		if summary == "" {
 			summary = extractLastJSONStringField(lite.tail, "summary")
 		}
@@ -629,6 +710,15 @@ func readSessionsFromDir(projectDir, projectPath string) []types.SDKSessionInfo 
 			sessionCWD = projectPath
 		}
 
+		// Tag extraction: scope to {"type":"tag"} lines only.
+		// A bare tail scan for "tag" would match tool_use inputs
+		// (git tag, Docker tags, cloud resource tags).
+		tag := extractTagFromTail(lite.tail)
+
+		// created_at from first entry's ISO timestamp (epoch ms).
+		// Scope to first JSONL line to avoid false matches.
+		createdAt := extractTimestampFromFirstLine(firstLine)
+
 		info := types.SDKSessionInfo{
 			SessionID:    sessionID,
 			Summary:      summary,
@@ -647,6 +737,12 @@ func readSessionsFromDir(projectDir, projectPath string) []types.SDKSessionInfo 
 		}
 		if sessionCWD != "" {
 			info.CWD = &sessionCWD
+		}
+		if tag != "" {
+			info.Tag = &tag
+		}
+		if createdAt != 0 {
+			info.CreatedAt = &createdAt
 		}
 
 		results = append(results, info)

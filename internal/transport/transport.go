@@ -883,9 +883,12 @@ func (t *SubprocessCLITransport) Close(ctx context.Context) error {
 			t.stderr = nil
 		}
 
-		// Terminate and wait for process with timeout
+		// Wait for graceful shutdown after stdin EOF, then terminate if needed.
+		// The subprocess needs time to flush its session file after receiving
+		// EOF on stdin. Without this grace period, SIGTERM can interrupt the
+		// write and cause the last assistant message to be lost (see #625).
 		if t.cmd != nil && t.cmd.Process != nil {
-			t.cmd.Process.Kill()
+			process := t.cmd.Process
 
 			// Wait for process with timeout to prevent indefinite blocking
 			done := make(chan struct{})
@@ -896,9 +899,16 @@ func (t *SubprocessCLITransport) Close(ctx context.Context) error {
 
 			select {
 			case <-done:
-				// Process exited normally
+				// Process exited gracefully after stdin EOF
 			case <-time.After(5 * time.Second):
-				// Timeout waiting for process, continue cleanup
+				// Graceful shutdown timed out - force terminate
+				process.Kill()
+				// Wait for kill to complete
+				select {
+				case <-done:
+				case <-time.After(1 * time.Second):
+					// Timeout waiting for kill, continue cleanup
+				}
 			}
 		}
 
