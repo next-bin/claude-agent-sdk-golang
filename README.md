@@ -16,10 +16,14 @@ A Go SDK for building AI agents with Claude. This SDK provides a Go implementati
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
 - [Core Features](#core-features)
+- [Advanced Topics](#advanced-topics)
 - [API Reference](#api-reference)
 - [Error Handling](#error-handling)
 - [Examples](#examples)
 - [Testing](#testing)
+- [Performance](#performance)
+- [Security](#security)
+- [Best Practices](#best-practices)
 - [FAQ](#faq)
 - [Troubleshooting](#troubleshooting)
 - [Migration Guide](#migration-guide)
@@ -73,6 +77,13 @@ go get github.com/unitsvc/claude-agent-sdk-golang
 
 ```go
 import claude "github.com/unitsvc/claude-agent-sdk-golang"
+```
+
+### Version Pinning
+
+```go
+// go.mod
+require github.com/unitsvc/claude-agent-sdk-golang v0.1.50
 ```
 
 ## Quick Start
@@ -150,8 +161,8 @@ func main() {
 
     // Create client with custom options
     client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-        Model:       types.String(types.ModelSonnet),
-        MaxTurns:    types.Int(5),
+        Model:        types.String(types.ModelSonnet),
+        MaxTurns:     types.Int(5),
         MaxBudgetUSD: types.Float64(1.0),
     })
     defer client.Close()
@@ -225,6 +236,28 @@ func main() {
 | **Permission Manager** | Controls tool execution permissions |
 | **Transport Layer** | Handles subprocess communication with Claude CLI |
 | **Sessions API** | Manages conversation history |
+
+### Project Structure
+
+```
+claude-agent-sdk-golang/
+├── client.go              # Client implementation
+├── query.go               # Query function
+├── sdk.go                 # Public API exports
+├── types/
+│   └── types.go           # Type definitions
+├── errors/
+│   └── errors.go          # Error types
+├── internal/
+│   ├── messageparser/     # JSONL message parsing
+│   ├── query/             # Query implementation
+│   ├── sessions/          # Sessions API
+│   └── transport/         # CLI transport layer
+├── sdkmcp/
+│   └── server.go          # SDK MCP server
+└── examples/
+    └── ...                # Usage examples
+```
 
 ## Core Features
 
@@ -581,6 +614,118 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 When enabled, tool input deltas stream in real-time, allowing progressive UI updates.
 
+## Advanced Topics
+
+### Concurrent Queries
+
+Handle multiple queries concurrently:
+
+```go
+func processQuery(ctx context.Context, prompt string) error {
+    msgChan, err := claude.Query(ctx, prompt, nil)
+    if err != nil {
+        return err
+    }
+
+    for msg := range msgChan {
+        if m, ok := msg.(*types.ResultMessage); ok {
+            fmt.Printf("Result: %s\n", *m.Result)
+        }
+    }
+    return nil
+}
+
+// Run multiple queries concurrently
+var wg sync.WaitGroup
+prompts := []string{"What is 1+1?", "What is 2+2?", "What is 3+3?"}
+
+for _, p := range prompts {
+    wg.Add(1)
+    go func(prompt string) {
+        defer wg.Done()
+        if err := processQuery(ctx, prompt); err != nil {
+            log.Printf("Error: %v", err)
+        }
+    }(p)
+}
+wg.Wait()
+```
+
+### Context Cancellation
+
+Properly handle context cancellation:
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+msgChan, err := client.Query(ctx, "Hello")
+if err != nil {
+    log.Fatal(err)
+}
+
+for {
+    select {
+    case msg, ok := <-msgChan:
+        if !ok {
+            return // Channel closed
+        }
+        // Process message
+    case <-ctx.Done():
+        log.Println("Context cancelled")
+        client.Interrupt(context.Background())
+        return
+    }
+}
+```
+
+### Custom Transport
+
+Implement custom transport for testing or special needs:
+
+```go
+type MockTransport struct {
+    messages []string
+}
+
+func (t *MockTransport) Start(ctx context.Context) error { return nil }
+func (t *MockTransport) Close() error                    { return nil }
+func (t *MockTransport) SendPrompt(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions) error {
+    return nil
+}
+func (t *MockTransport) Messages() <-chan string { /* ... */ }
+func (t *MockTransport) Stderr() <-chan string   { /* ... */ }
+
+// Use custom transport
+client := client.NewWithOptions(&types.ClaudeAgentOptions{
+    Transport: &MockTransport{},
+})
+```
+
+### Error Recovery
+
+Recover from errors and continue:
+
+```go
+for {
+    msgChan, err := client.Query(ctx, prompt)
+    if err != nil {
+        if errors.Is(err, claude.ErrConnectionFailed) {
+            // Try to reconnect
+            time.Sleep(time.Second)
+            if err := client.Connect(ctx); err != nil {
+                log.Printf("Reconnect failed: %v", err)
+                continue
+            }
+        }
+        continue
+    }
+
+    // Process messages...
+    break
+}
+```
+
 ## API Reference
 
 ### Package Functions
@@ -788,6 +933,137 @@ go test ./internal/sessions/... -v
 go test -race ./...
 ```
 
+## Performance
+
+### Benchmarks
+
+```bash
+# Run benchmarks
+go test -bench=. ./...
+
+# Run with memory profiling
+go test -bench=. -benchmem ./...
+```
+
+### Optimization Tips
+
+1. **Reuse Clients**: Create one client and reuse for multiple queries
+2. **Pool Goroutines**: Use worker pools for concurrent queries
+3. **Buffer Channels**: Use buffered channels for high-throughput scenarios
+4. **Context Timeouts**: Set appropriate timeouts to prevent hangs
+
+```go
+// Good: Reuse client
+client := claude.NewClientWithOptions(opts)
+defer client.Close()
+client.Connect(ctx)
+
+for _, prompt := range prompts {
+    msgChan, _ := client.Query(ctx, prompt)
+    // Process messages...
+}
+
+// Bad: Create new client each time
+for _, prompt := range prompts {
+    msgChan, _ := claude.Query(ctx, prompt, opts) // Creates new client each time
+    // Process messages...
+}
+```
+
+## Security
+
+### Best Practices
+
+1. **Never hardcode API keys** - Use environment variables or secure storage
+2. **Validate inputs** - Sanitize user inputs before sending to Claude
+3. **Limit permissions** - Use `AllowedTools` and `CanUseTool` to restrict tool access
+4. **Sandbox writes** - Redirect file writes to safe directories
+5. **Audit hooks** - Log all tool executions for security auditing
+
+```go
+// Example: Secure configuration
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    // Restrict tools
+    AllowedTools: []string{"Read", "Bash"},
+
+    // Validate and sandbox
+    CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+        // Log for auditing
+        log.Printf("Tool request: %s by user", toolName)
+
+        // Validate inputs
+        if toolName == "Bash" {
+            if cmd, ok := input["command"].(string); ok {
+                // Block dangerous commands
+                if strings.Contains(cmd, "rm -rf") {
+                    return types.PermissionResultDeny{
+                        Behavior: "deny",
+                        Message:  "Destructive commands not allowed",
+                    }, nil
+                }
+            }
+        }
+
+        return types.PermissionResultAllow{Behavior: "allow"}, nil
+    },
+})
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `CLAUDE_CONFIG_DIR` | Custom config directory |
+| `CLAUDE_CODE_ENTRYPOINT` | Entry point identifier |
+
+## Best Practices
+
+### Resource Management
+
+```go
+// Always close clients
+client := claude.NewClientWithOptions(opts)
+defer client.Close()
+
+// Always cancel contexts
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+```
+
+### Error Handling
+
+```go
+// Check all errors
+msgChan, err := client.Query(ctx, prompt)
+if err != nil {
+    // Handle specific errors
+    switch {
+    case errors.Is(err, claude.ErrNoAPIKey):
+        // Handle missing API key
+    case errors.Is(err, claude.ErrTimeout):
+        // Handle timeout
+    default:
+        // Handle other errors
+    }
+}
+```
+
+### Concurrency
+
+```go
+// Use sync.WaitGroup for coordination
+var wg sync.WaitGroup
+for _, prompt := range prompts {
+    wg.Add(1)
+    go func(p string) {
+        defer wg.Done()
+        processQuery(ctx, p)
+    }(prompt)
+}
+wg.Wait()
+```
+
 ## FAQ
 
 ### How do I set a custom working directory?
@@ -849,6 +1125,32 @@ for msg := range msgChan {
 }
 ```
 
+### How do I stream partial messages?
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    IncludePartialMessages: types.Bool(true),
+})
+```
+
+### How do I use multiple MCP servers?
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    MCPServers: map[string]interface{}{
+        "fs": types.McpStdioServerConfig{
+            Command: "mcp-filesystem-server",
+            Args:    []string{"/allowed"},
+        },
+        "db": types.McpStdioServerConfig{
+            Command: "mcp-postgres-server",
+            Args:    []string{"postgres://localhost/db"},
+        },
+    },
+    AllowedTools: []string{"mcp__fs__read", "mcp__db__query"},
+})
+```
+
 ## Troubleshooting
 
 ### "Claude CLI not installed"
@@ -893,6 +1195,23 @@ Increase timeout for long-running queries:
 ```go
 ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 defer cancel()
+```
+
+### "Permission denied"
+
+Check your `CanUseTool` callback or `PermissionMode`:
+
+```go
+// Option 1: Use bypass mode (not recommended for production)
+PermissionMode: types.PermissionModePtr(types.PermissionModeBypassPermissions)
+
+// Option 2: Add tools to allowed list
+AllowedTools: []string{"Bash", "Read", "Write"}
+
+// Option 3: Implement CanUseTool callback
+CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+    return types.PermissionResultAllow{Behavior: "allow"}, nil
+}
 ```
 
 ## Migration Guide
@@ -979,6 +1298,23 @@ Contributions are welcome! Please:
 2. Create a feature branch
 3. Add tests for new functionality
 4. Submit a pull request
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/unitsvc/claude-agent-sdk-golang.git
+cd claude-agent-sdk-golang
+
+# Install dependencies
+go mod download
+
+# Run tests
+go test ./...
+
+# Run linter
+go vet ./...
+```
 
 ## Related Projects
 

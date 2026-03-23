@@ -16,10 +16,14 @@
 - [快速开始](#快速开始)
 - [架构](#架构)
 - [核心功能](#核心功能)
+- [高级主题](#高级主题)
 - [API 参考](#api-参考)
 - [错误处理](#错误处理)
 - [示例](#示例)
 - [测试](#测试)
+- [性能](#性能)
+- [安全](#安全)
+- [最佳实践](#最佳实践)
 - [常见问题](#常见问题)
 - [故障排除](#故障排除)
 - [迁移指南](#迁移指南)
@@ -73,6 +77,13 @@ go get github.com/unitsvc/claude-agent-sdk-golang
 
 ```go
 import claude "github.com/unitsvc/claude-agent-sdk-golang"
+```
+
+### 版本固定
+
+```go
+// go.mod
+require github.com/unitsvc/claude-agent-sdk-golang v0.1.50
 ```
 
 ## 快速开始
@@ -225,6 +236,28 @@ func main() {
 | **权限管理器** | 控制工具执行权限 |
 | **传输层** | 处理与 Claude CLI 的子进程通信 |
 | **会话 API** | 管理对话历史 |
+
+### 项目结构
+
+```
+claude-agent-sdk-golang/
+├── client.go              # 客户端实现
+├── query.go               # Query 函数
+├── sdk.go                 # 公共 API 导出
+├── types/
+│   └── types.go           # 类型定义
+├── errors/
+│   └── errors.go          # 错误类型
+├── internal/
+│   ├── messageparser/     # JSONL 消息解析
+│   ├── query/             # Query 实现
+│   ├── sessions/          # 会话 API
+│   └── transport/         # CLI 传输层
+├── sdkmcp/
+│   └── server.go          # SDK MCP 服务器
+└── examples/
+    └── ...                # 使用示例
+```
 
 ## 核心功能
 
@@ -581,6 +614,118 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 启用后，工具输入增量实时流式传输，支持渐进式 UI 更新。
 
+## 高级主题
+
+### 并发查询
+
+同时处理多个查询：
+
+```go
+func processQuery(ctx context.Context, prompt string) error {
+    msgChan, err := claude.Query(ctx, prompt, nil)
+    if err != nil {
+        return err
+    }
+
+    for msg := range msgChan {
+        if m, ok := msg.(*types.ResultMessage); ok {
+            fmt.Printf("结果: %s\n", *m.Result)
+        }
+    }
+    return nil
+}
+
+// 并发运行多个查询
+var wg sync.WaitGroup
+prompts := []string{"1+1等于多少？", "2+2等于多少？", "3+3等于多少？"}
+
+for _, p := range prompts {
+    wg.Add(1)
+    go func(prompt string) {
+        defer wg.Done()
+        if err := processQuery(ctx, prompt); err != nil {
+            log.Printf("错误: %v", err)
+        }
+    }(p)
+}
+wg.Wait()
+```
+
+### 上下文取消
+
+正确处理上下文取消：
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+msgChan, err := client.Query(ctx, "你好")
+if err != nil {
+    log.Fatal(err)
+}
+
+for {
+    select {
+    case msg, ok := <-msgChan:
+        if !ok {
+            return // 通道已关闭
+        }
+        // 处理消息
+    case <-ctx.Done():
+        log.Println("上下文已取消")
+        client.Interrupt(context.Background())
+        return
+    }
+}
+```
+
+### 自定义传输层
+
+为测试或特殊需求实现自定义传输：
+
+```go
+type MockTransport struct {
+    messages []string
+}
+
+func (t *MockTransport) Start(ctx context.Context) error { return nil }
+func (t *MockTransport) Close() error                    { return nil }
+func (t *MockTransport) SendPrompt(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions) error {
+    return nil
+}
+func (t *MockTransport) Messages() <-chan string { /* ... */ }
+func (t *MockTransport) Stderr() <-chan string   { /* ... */ }
+
+// 使用自定义传输
+client := client.NewWithOptions(&types.ClaudeAgentOptions{
+    Transport: &MockTransport{},
+})
+```
+
+### 错误恢复
+
+从错误中恢复并继续：
+
+```go
+for {
+    msgChan, err := client.Query(ctx, prompt)
+    if err != nil {
+        if errors.Is(err, claude.ErrConnectionFailed) {
+            // 尝试重新连接
+            time.Sleep(time.Second)
+            if err := client.Connect(ctx); err != nil {
+                log.Printf("重连失败: %v", err)
+                continue
+            }
+        }
+        continue
+    }
+
+    // 处理消息...
+    break
+}
+```
+
 ## API 参考
 
 ### 包函数
@@ -788,6 +933,137 @@ go test ./internal/sessions/... -v
 go test -race ./...
 ```
 
+## 性能
+
+### 基准测试
+
+```bash
+# 运行基准测试
+go test -bench=. ./...
+
+# 内存分析
+go test -bench=. -benchmem ./...
+```
+
+### 优化建议
+
+1. **复用客户端**：创建一个客户端并复用于多个查询
+2. **协程池**：使用工作池处理并发查询
+3. **缓冲通道**：高吞吐场景使用带缓冲的通道
+4. **上下文超时**：设置合理的超时防止阻塞
+
+```go
+// 推荐：复用客户端
+client := claude.NewClientWithOptions(opts)
+defer client.Close()
+client.Connect(ctx)
+
+for _, prompt := range prompts {
+    msgChan, _ := client.Query(ctx, prompt)
+    // 处理消息...
+}
+
+// 不推荐：每次创建新客户端
+for _, prompt := range prompts {
+    msgChan, _ := claude.Query(ctx, prompt, opts) // 每次创建新客户端
+    // 处理消息...
+}
+```
+
+## 安全
+
+### 最佳实践
+
+1. **不要硬编码 API 密钥** - 使用环境变量或安全存储
+2. **验证输入** - 发送到 Claude 前清理用户输入
+3. **限制权限** - 使用 `AllowedTools` 和 `CanUseTool` 限制工具访问
+4. **沙箱写入** - 将文件写入重定向到安全目录
+5. **审计日志** - 记录所有工具执行以便安全审计
+
+```go
+// 示例：安全配置
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    // 限制工具
+    AllowedTools: []string{"Read", "Bash"},
+
+    // 验证和沙箱
+    CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+        // 审计日志
+        log.Printf("工具请求: %s 来自用户", toolName)
+
+        // 验证输入
+        if toolName == "Bash" {
+            if cmd, ok := input["command"].(string); ok {
+                // 阻止危险命令
+                if strings.Contains(cmd, "rm -rf") {
+                    return types.PermissionResultDeny{
+                        Behavior: "deny",
+                        Message:  "不允许执行破坏性命令",
+                    }, nil
+                }
+            }
+        }
+
+        return types.PermissionResultAllow{Behavior: "allow"}, nil
+    },
+})
+```
+
+### 环境变量
+
+| 变量 | 描述 |
+|------|------|
+| `ANTHROPIC_API_KEY` | Anthropic API 密钥 |
+| `CLAUDE_CONFIG_DIR` | 自定义配置目录 |
+| `CLAUDE_CODE_ENTRYPOINT` | 入口点标识符 |
+
+## 最佳实践
+
+### 资源管理
+
+```go
+// 总是关闭客户端
+client := claude.NewClientWithOptions(opts)
+defer client.Close()
+
+// 总是取消上下文
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+```
+
+### 错误处理
+
+```go
+// 检查所有错误
+msgChan, err := client.Query(ctx, prompt)
+if err != nil {
+    // 处理特定错误
+    switch {
+    case errors.Is(err, claude.ErrNoAPIKey):
+        // 处理缺失 API 密钥
+    case errors.Is(err, claude.ErrTimeout):
+        // 处理超时
+    default:
+        // 处理其他错误
+    }
+}
+```
+
+### 并发
+
+```go
+// 使用 sync.WaitGroup 协调
+var wg sync.WaitGroup
+for _, prompt := range prompts {
+    wg.Add(1)
+    go func(p string) {
+        defer wg.Done()
+        processQuery(ctx, p)
+    }(prompt)
+}
+wg.Wait()
+```
+
 ## 常见问题
 
 ### 如何设置自定义工作目录？
@@ -849,6 +1125,32 @@ for msg := range msgChan {
 }
 ```
 
+### 如何流式传输部分消息？
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    IncludePartialMessages: types.Bool(true),
+})
+```
+
+### 如何使用多个 MCP 服务器？
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    MCPServers: map[string]interface{}{
+        "fs": types.McpStdioServerConfig{
+            Command: "mcp-filesystem-server",
+            Args:    []string{"/allowed"},
+        },
+        "db": types.McpStdioServerConfig{
+            Command: "mcp-postgres-server",
+            Args:    []string{"postgres://localhost/db"},
+        },
+    },
+    AllowedTools: []string{"mcp__fs__read", "mcp__db__query"},
+})
+```
+
 ## 故障排除
 
 ### "Claude CLI not installed"
@@ -893,6 +1195,23 @@ AllowedTools: []string{"mcp__calc__add", "mcp__calc__multiply"}
 ```go
 ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 defer cancel()
+```
+
+### "Permission denied"
+
+检查 `CanUseTool` 回调或 `PermissionMode`：
+
+```go
+// 方式一：使用绕过模式（生产环境不推荐）
+PermissionMode: types.PermissionModePtr(types.PermissionModeBypassPermissions)
+
+// 方式二：将工具添加到允许列表
+AllowedTools: []string{"Bash", "Read", "Write"}
+
+// 方式三：实现 CanUseTool 回调
+CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
+    return types.PermissionResultAllow{Behavior: "allow"}, nil
+}
 ```
 
 ## 迁移指南
@@ -979,6 +1298,23 @@ MIT 许可证 - 详见 [LICENSE](LICENSE)。
 2. 创建功能分支
 3. 为新功能添加测试
 4. 提交 Pull Request
+
+### 开发环境配置
+
+```bash
+# 克隆仓库
+git clone https://github.com/unitsvc/claude-agent-sdk-golang.git
+cd claude-agent-sdk-golang
+
+# 安装依赖
+go mod download
+
+# 运行测试
+go test ./...
+
+# 运行代码检查
+go vet ./...
+```
 
 ## 相关项目
 
