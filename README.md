@@ -1,17 +1,67 @@
 # Claude Agent SDK for Go
 
-[中文版本](README-zh.md)
+[![Go Reference](https://pkg.go.dev/badge/github.com/unitsvc/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/unitsvc/claude-agent-sdk-golang)
+[![Go Report Card](https://goreportcard.com/badge/github.com/unitsvc/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/unitsvc/claude-agent-sdk-golang)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Go SDK for building AI agents with Claude. This SDK provides a Go implementation of the Claude Agent SDK, enabling you to build AI agents that can use tools, handle permissions, and interact with MCP servers.
+[中文文档](README-zh.md)
+
+A Go SDK for building AI agents with Claude. This SDK provides a Go implementation of the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python), enabling you to build AI agents that can use tools, handle permissions, and interact with MCP servers.
+
+## Table of Contents
+
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Core Features](#core-features)
+- [API Reference](#api-reference)
+- [Error Handling](#error-handling)
+- [Examples](#examples)
+- [Testing](#testing)
+- [FAQ](#faq)
+- [Troubleshooting](#troubleshooting)
+- [Migration Guide](#migration-guide)
+- [Changelog](#changelog)
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔄 **Full API Compatibility** | Compatible with Python SDK v0.1.50 |
+| 📡 **Streaming Messages** | Real-time message streaming via Go channels |
+| 🔌 **MCP Server Support** | Stdio, SSE, HTTP, and in-process SDK MCP servers |
+| 🪝 **Hook System** | 12 hook events for tool lifecycle management |
+| 🔐 **Permission Control** | Fine-grained tool permission callbacks |
+| 💾 **Sessions API** | List, query, rename, and tag conversation sessions |
+| 🎯 **Type Safety** | Compile-time type checking with Go generics |
+| ⚡ **Concurrency** | Native goroutine + channel patterns |
+| 📊 **Cost Tracking** | Built-in usage and cost tracking |
+| 🛠️ **Custom Tools** | Define custom tools with JSON Schema validation |
 
 ## Prerequisites
 
-- Go 1.21 or later
-- Claude Code CLI installed and authenticated:
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  claude login
-  ```
+- **Go 1.21+** (for generics support)
+- **Claude Code CLI** installed and authenticated:
+
+```bash
+# Install Claude Code CLI
+npm install -g @anthropic-ai/claude-code
+
+# Authenticate with Anthropic
+claude login
+```
+
+### Verify Installation
+
+```bash
+# Check Go version
+go version  # Should be 1.21 or higher
+
+# Check Claude CLI
+claude --version
+```
 
 ## Installation
 
@@ -19,9 +69,17 @@ A Go SDK for building AI agents with Claude. This SDK provides a Go implementati
 go get github.com/unitsvc/claude-agent-sdk-golang
 ```
 
+### Go Modules
+
+```go
+import claude "github.com/unitsvc/claude-agent-sdk-golang"
+```
+
 ## Quick Start
 
 ### Simple Query
+
+The simplest way to interact with Claude:
 
 ```go
 package main
@@ -38,17 +96,22 @@ import (
 func main() {
     ctx := context.Background()
 
-    // Simple one-shot query
+    // One-shot query - creates client, sends query, and closes automatically
     msgChan, err := claude.Query(ctx, "What is 2+2?", nil)
     if err != nil {
         log.Fatal(err)
     }
 
+    // Process streaming messages
     for msg := range msgChan {
         switch m := msg.(type) {
         case *types.ResultMessage:
             if m.Result != nil {
                 fmt.Printf("Result: %s\n", *m.Result)
+            }
+            fmt.Printf("Duration: %dms, Turns: %d\n", m.DurationMS, m.NumTurns)
+            if m.TotalCostUSD != nil {
+                fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
             }
         case *types.AssistantMessage:
             for _, block := range m.Content {
@@ -63,6 +126,8 @@ func main() {
 
 ### Client with Options
 
+For more control and multiple queries:
+
 ```go
 package main
 
@@ -70,17 +135,24 @@ import (
     "context"
     "fmt"
     "log"
+    "os"
+    "os/signal"
+    "syscall"
 
     claude "github.com/unitsvc/claude-agent-sdk-golang"
     "github.com/unitsvc/claude-agent-sdk-golang/types"
 )
 
 func main() {
-    ctx := context.Background()
+    // Create context that cancels on Ctrl+C
+    ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer cancel()
 
     // Create client with custom options
     client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-        Model: types.String(types.ModelSonnet),
+        Model:       types.String(types.ModelSonnet),
+        MaxTurns:    types.Int(5),
+        MaxBudgetUSD: types.Float64(1.0),
     })
     defer client.Close()
 
@@ -90,99 +162,195 @@ func main() {
     }
 
     // Send a query
-    msgChan, err := client.Query(ctx, "Tell me a short joke.")
+    msgChan, err := client.Query(ctx, "Write a haiku about programming.")
     if err != nil {
         log.Fatal(err)
     }
 
+    // Process messages
     for msg := range msgChan {
         switch m := msg.(type) {
+        case *types.AssistantMessage:
+            for _, block := range m.Content {
+                if tb, ok := block.(types.TextBlock); ok {
+                    fmt.Print(tb.Text)
+                }
+            }
         case *types.ResultMessage:
-            if m.Result != nil {
-                fmt.Printf("Result: %s\n", *m.Result)
+            fmt.Printf("\n\n---\nSession: %s\n", m.SessionID)
+            if m.TotalCostUSD != nil {
+                fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
             }
         }
     }
 }
 ```
 
-## Features
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Your Application                          │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Query()   │  │   Client    │  │     Sessions API        │  │
+│  │   (Simple)  │  │ (Advanced)  │  │ ListSessions, etc.      │  │
+│  └──────┬──────┘  └──────┬──────┘  └────────────┬────────────┘  │
+├─────────┴────────────────┴─────────────────────┴───────────────┤
+│                        SDK Core                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Message   │  │    Hook     │  │    Permission           │  │
+│  │   Parser    │  │   System    │  │    Manager              │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                      Transport Layer                             │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              SubprocessCLITransport                      │    │
+│  │         (Communication with Claude CLI)                  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────────┤
+│                       Claude Code CLI                            │
+│                    (Official Anthropic CLI)                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Description |
+|-----------|-------------|
+| **Query()** | Simple one-shot query function |
+| **Client** | Full-featured client for interactive sessions |
+| **Message Parser** | Parses JSONL messages from Claude CLI |
+| **Hook System** | Event-driven callbacks for tool lifecycle |
+| **Permission Manager** | Controls tool execution permissions |
+| **Transport Layer** | Handles subprocess communication with Claude CLI |
+| **Sessions API** | Manages conversation history |
+
+## Core Features
 
 ### Streaming Messages
 
-The SDK streams messages as they are generated:
+The SDK uses Go channels for real-time message streaming:
 
 ```go
 for msg := range msgChan {
     switch m := msg.(type) {
     case *types.AssistantMessage:
-        // Streaming text from the assistant
+        // Streaming text - may arrive in multiple chunks
         for _, block := range m.Content {
-            if tb, ok := block.(types.TextBlock); ok {
-                fmt.Print(tb.Text)
-            }
-            if tb, ok := block.(types.ThinkingBlock); ok {
-                fmt.Printf("[Thinking: %s]\n", tb.Thinking)
+            switch b := block.(type) {
+            case types.TextBlock:
+                fmt.Print(b.Text)  // Text content
+            case types.ThinkingBlock:
+                fmt.Printf("[Thinking: %s]\n", b.Thinking)  // Extended thinking
+            case types.ToolUseBlock:
+                fmt.Printf("[Calling tool: %s]\n", b.Name)  // Tool invocation
             }
         }
     case *types.ResultMessage:
-        // Final result
-        if m.TotalCostUSD != nil {
-            fmt.Printf("\nCost: $%.4f\n", *m.TotalCostUSD)
-        }
+        // Final result - contains summary info
+        fmt.Printf("Session: %s\n", m.SessionID)
         fmt.Printf("Duration: %dms\n", m.DurationMS)
+        fmt.Printf("Turns: %d\n", m.NumTurns)
+        if m.TotalCostUSD != nil {
+            fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
+        }
+        if m.StopReason != nil {
+            fmt.Printf("Stop reason: %s\n", *m.StopReason)
+        }
     }
 }
 ```
 
 ### Permission Handling
 
-Control tool permissions with callbacks:
+Control tool execution with fine-grained permissions:
 
 ```go
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
     CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
-        if toolName == "Bash" {
-            // Auto-approve Bash commands
-            return types.PermissionResultAllow{
-                Behavior: "allow",
+        // Log tool usage
+        log.Printf("Tool: %s, Input: %v", toolName, input)
+
+        switch toolName {
+        case "Bash":
+            // Auto-approve safe commands
+            if cmd, ok := input["command"].(string); ok {
+                if strings.HasPrefix(cmd, "git ") || strings.HasPrefix(cmd, "go ") {
+                    return types.PermissionResultAllow{Behavior: "allow"}, nil
+                }
+            }
+            // Ask for confirmation for other commands
+            return types.PermissionResultDeny{
+                Behavior: "deny",
+                Message:  "Command requires manual approval",
+            }, nil
+
+        case "Write":
+            // Redirect writes to a sandbox directory
+            if path, ok := input["file_path"].(string); ok {
+                safePath := filepath.Join("/sandbox", filepath.Base(path))
+                return types.PermissionResultAllow{
+                    Behavior: "allow",
+                    UpdatedInput: map[string]interface{}{
+                        "file_path": safePath,
+                        "content":   input["content"],
+                    },
+                }, nil
+            }
+
+        case "Read":
+            // Allow all reads
+            return types.PermissionResultAllow{Behavior: "allow"}, nil
+
+        default:
+            // Deny unknown tools
+            return types.PermissionResultDeny{
+                Behavior: "deny",
+                Message:  fmt.Sprintf("Tool %s is not allowed", toolName),
             }, nil
         }
-        // Deny other tools
-        return types.PermissionResultDeny{
-            Behavior: "deny",
-            Message:  "Permission denied",
-        }, nil
     },
-})
-```
-
-### Custom System Prompt
-
-```go
-client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-    SystemPrompt: "You are a helpful coding assistant specialized in Go.",
-})
-```
-
-### Working Directory
-
-```go
-client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-    CWD: types.String("/path/to/project"),
 })
 ```
 
 ### MCP Servers
 
-Configure MCP (Model Context Protocol) servers:
+Configure external MCP servers:
 
 ```go
+// Stdio MCP server (local process)
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
     MCPServers: map[string]interface{}{
-        "myServer": types.McpStdioServerConfig{
-            Command: "my-mcp-server",
-            Args:    []string{"--port", "8080"},
+        "filesystem": types.McpStdioServerConfig{
+            Command: "mcp-filesystem-server",
+            Args:    []string{"/allowed/path"},
+            Env:     map[string]string{"DEBUG": "1"},
+        },
+        "database": types.McpStdioServerConfig{
+            Command: "mcp-postgres-server",
+            Args:    []string{"postgresql://localhost/mydb"},
+        },
+    },
+})
+
+// SSE MCP server (remote)
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    MCPServers: map[string]interface{}{
+        "remote": types.McpSSEServerConfig{
+            URL: "https://api.example.com/mcp/sse",
+            Headers: map[string]string{
+                "Authorization": "Bearer token",
+            },
+        },
+    },
+})
+
+// HTTP MCP server
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    MCPServers: map[string]interface{}{
+        "api": types.McpHttpServerConfig{
+            URL: "https://api.example.com/mcp",
         },
     },
 })
@@ -190,381 +358,415 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 ### SDK MCP Server (In-Process)
 
-Create in-process MCP servers with custom tools:
+Create custom tools without external processes:
 
 ```go
 import "github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
 
-// Define a tool
-addTool := sdkmcp.Tool("add", "Add two numbers",
-    sdkmcp.Schema(map[string]interface{}{
-        "a": sdkmcp.NumberProperty("First number"),
-        "b": sdkmcp.NumberProperty("Second number"),
-    }, []string{"a", "b"}),
-    func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
-        a, _ := args["a"].(float64)
-        b, _ := args["b"].(float64)
-        return sdkmcp.TextResult(fmt.Sprintf("Result: %.2f", a+b)), nil
-    })
+// Define a calculator tool
+calculator := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{
+    sdkmcp.Tool("add", "Add two numbers",
+        sdkmcp.Schema(map[string]interface{}{
+            "a": sdkmcp.NumberProperty("First number"),
+            "b": sdkmcp.NumberProperty("Second number"),
+        }, []string{"a", "b"}),
+        func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+            a, _ := args["a"].(float64)
+            b, _ := args["b"].(float64)
+            return sdkmcp.TextResult(fmt.Sprintf("%.2f", a+b)), nil
+        }),
 
-// Create the server
-calcServer := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{addTool})
+    sdkmcp.Tool("multiply", "Multiply two numbers",
+        sdkmcp.Schema(map[string]interface{}{
+            "a": sdkmcp.NumberProperty("First number"),
+            "b": sdkmcp.NumberProperty("Second number"),
+        }, []string{"a", "b"}),
+        func(ctx context.Context, args map[string]interface{}) (*sdkmcp.ToolResult, error) {
+            a, _ := args["a"].(float64)
+            b, _ := args["b"].(float64)
+            return sdkmcp.TextResult(fmt.Sprintf("%.2f", a*b)), nil
+        }),
+})
 
-// Use with client
+// Use the tool with client
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
     MCPServers: map[string]interface{}{
         "calc": types.McpSdkServerConfig{
             Type:     "sdk",
             Name:     "calculator",
-            Instance: calcServer,
+            Instance: calculator,
         },
     },
-    AllowedTools: []string{"mcp__calc__add"},
+    AllowedTools: []string{"mcp__calc__add", "mcp__calc__multiply"},
 })
 ```
 
 ### Hooks
 
-Register hooks for tool events:
+Register callbacks for tool lifecycle events:
 
 ```go
+// Define a hook callback
+type LoggingHook struct{}
+
+func (h *LoggingHook) Call(input interface{}) (interface{}, error) {
+    switch i := input.(type) {
+    case types.PreToolUseHookInput:
+        log.Printf("[PRE] Tool: %s", i.ToolName)
+        log.Printf("[PRE] Input: %v", i.ToolInput)
+    case types.PostToolUseHookInput:
+        log.Printf("[POST] Tool: %s", i.ToolName)
+        log.Printf("[POST] Result: %v", i.ToolResult)
+    }
+    return nil, nil // Return nil to continue, error to block
+}
+
+// Register hooks
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
     Hooks: map[types.HookEvent][]types.HookMatcher{
         types.HookEventPreToolUse: {
             {
-                Matcher: "Bash",
-                Hooks: []types.HookCallback{
-                    &MyHookCallback{},
-                },
+                Matcher: "Bash",  // Regex pattern
+                Hooks: []types.HookCallback{&LoggingHook{}},
+            },
+        },
+        types.HookEventPostToolUse: {
+            {
+                Matcher: ".*",  // Match all tools
+                Hooks: []types.HookCallback{&LoggingHook{}},
             },
         },
     },
 })
 ```
 
-A **hook** is a Go function that the Claude Code _application_ (_not_ Claude) invokes at specific points of the Claude agent loop. Hooks can provide deterministic processing and automated feedback for Claude. Read more in [Claude Code Hooks Reference](https://docs.anthropic.com/en/docs/claude-code/hooks).
+#### Hook Events
 
-**Available Hook Events:**
-- `HookEventPreToolUse` - Before tool execution
-- `HookEventPostToolUse` - After successful tool execution
-- `HookEventPostToolUseFailure` - After failed tool execution
-- `HookEventUserPromptSubmit` - When user submits a prompt
-- `HookEventStop` - When conversation stops
-- `HookEventSubagentStart` - When subagent starts
-- `HookEventSubagentStop` - When subagent stops
-- `HookEventPreCompact` - Before context compaction
-- `HookEventNotification` - For notifications
-- `HookEventPermissionRequest` - For permission requests
-- `HookEventSessionStart` - When session starts (Go SDK only)
-- `HookEventSessionEnd` - When session ends (Go SDK only)
+| Event | When Fired | Input Type |
+|-------|------------|------------|
+| `HookEventPreToolUse` | Before tool execution | `PreToolUseHookInput` |
+| `HookEventPostToolUse` | After successful tool execution | `PostToolUseHookInput` |
+| `HookEventPostToolUseFailure` | After failed tool execution | `PostToolUseFailureHookInput` |
+| `HookEventUserPromptSubmit` | When user submits a prompt | `UserPromptSubmitHookInput` |
+| `HookEventStop` | When conversation stops | `StopHookInput` |
+| `HookEventSubagentStart` | When subagent starts | `SubagentStartHookInput` |
+| `HookEventSubagentStop` | When subagent stops | `SubagentStopHookInput` |
+| `HookEventPreCompact` | Before context compaction | `PreCompactHookInput` |
+| `HookEventNotification` | For notifications | `NotificationHookInput` |
+| `HookEventPermissionRequest` | For permission requests | `PermissionRequestHookInput` |
+| `HookEventSessionStart` | When session starts | `SessionStartHookInput` |
+| `HookEventSessionEnd` | When session ends | `SessionEndHookInput` |
 
-For comprehensive examples, see [examples/hooks/main.go](examples/hooks/main.go).
+### Sessions API
+
+Manage conversation history:
+
+```go
+// List sessions for a project
+sessions, err := claude.ListSessions("/path/to/project", 10, true)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, sess := range sessions {
+    fmt.Printf("Session: %s\n", sess.SessionID)
+    fmt.Printf("  Summary: %s\n", sess.Summary)
+    fmt.Printf("  Modified: %s\n", time.UnixMilli(sess.LastModified).Format(time.RFC3339))
+
+    if sess.CustomTitle != nil {
+        fmt.Printf("  Title: %s\n", *sess.CustomTitle)
+    }
+    if sess.Tag != nil {
+        fmt.Printf("  Tag: %s\n", *sess.Tag)
+    }
+    if sess.CreatedAt != nil {
+        fmt.Printf("  Created: %s\n", time.UnixMilli(*sess.CreatedAt).Format(time.RFC3339))
+    }
+}
+
+// Get single session info (no directory scan)
+info := claude.GetSessionInfo("550e8400-e29b-41d4-a716-446655440000", "/path/to/project")
+if info != nil {
+    fmt.Printf("Session: %s\n", info.Summary)
+}
+
+// Get messages from a session
+messages, err := claude.GetSessionMessages(
+    "550e8400-e29b-41d4-a716-446655440000",
+    "/path/to/project",
+    10,   // limit (0 = no limit)
+    0,    // offset
+)
+for _, msg := range messages {
+    fmt.Printf("[%s] %v\n", msg.Type, msg.Message)
+}
+
+// Rename a session
+err := claude.RenameSession(
+    "550e8400-e29b-41d4-a716-446655440000",
+    "My Important Session",
+    "/path/to/project",
+)
+
+// Tag a session
+err := claude.TagSession(
+    "550e8400-e29b-41d4-a716-446655440000",
+    "important",
+    "/path/to/project",
+)
+```
 
 ### Permission Modes
 
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `PermissionModeDefault` | Prompts for permissions | Interactive applications |
+| `PermissionModeAcceptEdits` | Auto-accept file edits | Code editing tools |
+| `PermissionModePlan` | Planning mode | Complex multi-step tasks |
+| `PermissionModeBypassPermissions` | Bypass all permissions | Trusted environments only |
+
 ```go
+// Accept edits automatically
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
     PermissionMode: types.PermissionModePtr(types.PermissionModeAcceptEdits),
 })
 ```
 
-Available modes:
-- `PermissionModeDefault` - Default behavior
-- `PermissionModeAcceptEdits` - Auto-accept file edits
-- `PermissionModePlan` - Planning mode
-- `PermissionModeBypassPermissions` - Bypass all permissions
-
-### Sessions API
-
-List and retrieve session history:
-
-```go
-// List all sessions
-sessions, err := claude.ListSessions(ctx)
-for _, sess := range sessions {
-    fmt.Printf("Session: %s (%s)\n", sess.SessionID, sess.CustomTitle)
-}
-
-// Get messages from a specific session
-messages, err := claude.GetSessionMessages(ctx, sessionID)
-for _, msg := range messages {
-    fmt.Printf("%s: %s\n", msg.Role, msg.Content)
-}
-```
-
-### Session Mutations
-
-Rename and tag sessions:
-
-```go
-// Rename a session
-err := claude.RenameSession(ctx, sessionID, "My New Title")
-
-// Tag a session
-err := claude.TagSession(ctx, sessionID, "important", "golang")
-```
-
-### Client Control Methods
-
-```go
-// Reconnect an MCP server
-err := client.ReconnectMCPServer(ctx, "myServer")
-
-// Toggle an MCP server on/off
-err := client.ToggleMCPServer(ctx, "myServer", false)
-
-// Stop the current task
-err := client.StopTask(ctx)
-```
-
-### Fine-Grained Tool Streaming
-
-Enable detailed tool streaming with `include_partial_messages`:
+### Custom System Prompt
 
 ```go
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-    IncludePartialMessages: true,
+    SystemPrompt: `You are a helpful coding assistant specialized in Go.
+
+Follow these guidelines:
+1. Always use idiomatic Go code
+2. Prefer standard library when possible
+3. Include error handling in examples
+4. Add comments for complex logic`,
 })
 ```
 
-When enabled, the SDK automatically sets `CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING=1` to get detailed tool input deltas.
-
 ### Agents
 
-Define custom agents with specific configurations:
+Define specialized agents for different tasks:
 
 ```go
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
     Agents: []types.AgentDefinition{
         {
-            Description: "Go expert",
-            Prompt:      "You are a Go programming expert.",
-            Tools:       []string{"Bash", "Read", "Write"},
+            Name:        "go-expert",
+            Description: "Go programming expert for writing and reviewing code",
+            Prompt:      "You are a Go programming expert with deep knowledge of the standard library, best practices, and common patterns.",
+            Tools:       []string{"Bash", "Read", "Write", "Edit", "Glob", "Grep"},
             Model:       types.String(types.ModelSonnet),
-            Skills:      []string{"golang"},
+        },
+        {
+            Name:        "security-reviewer",
+            Description: "Security-focused code reviewer",
+            Prompt:      "You are a security expert focused on identifying vulnerabilities and suggesting fixes.",
+            Tools:       []string{"Read", "Grep"},
+            Model:       types.String(types.ModelOpus),
         },
     },
 })
 ```
 
-### Streaming Modes
-
-The SDK supports multiple streaming patterns. See [examples/streaming_mode/main.go](examples/streaming_mode/main.go) for full demonstrations:
-
-```go
-// Interactive streaming with message type filtering
-for msg := range msgChan {
-    switch m := msg.(type) {
-    case *types.AssistantMessage:
-        // Handle streaming text
-    case *types.ResultMessage:
-        // Handle final result
-    }
-}
-```
-
-### Include Partial Messages
-
-Receive partial message content as it streams:
+### Fine-Grained Tool Streaming
 
 ```go
 client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-    IncludePartialMessages: true,
+    IncludePartialMessages: types.Bool(true),
 })
 ```
 
+When enabled, tool input deltas stream in real-time, allowing progressive UI updates.
+
 ## API Reference
 
-### `Query(ctx, prompt, options)`
-
-Simple one-shot query function.
+### Package Functions
 
 ```go
-msgChan, err := claude.Query(ctx, "What is 2+2?", nil)
+// Simple query (creates client internally)
+msgChan, err := claude.Query(ctx, "prompt", opts)
+
+// Query with existing client
+msgChan, err := claude.QueryWithClient(ctx, client, "prompt")
+
+// Create clients
+client := claude.NewClient()
+client := claude.NewClientWithOptions(opts)
+
+// Sessions API
+sessions, err := claude.ListSessions(directory, limit, includeWorktrees)
+info := claude.GetSessionInfo(sessionID, directory)
+messages, err := claude.GetSessionMessages(sessionID, directory, limit, offset)
+err := claude.RenameSession(sessionID, title, directory)
+err := claude.TagSession(sessionID, tag, directory)
 ```
 
-### `QueryWithClient(ctx, client, prompt)`
-
-Query using an existing client.
+### Client Methods
 
 ```go
-msgChan, err := claude.QueryWithClient(ctx, client, "Hello!")
+// Connection
+client.Connect(ctx) error
+client.Close() error
+
+// Query
+client.Query(ctx, prompt) (<-chan Message, error)
+client.ReceiveMessages(ctx) (<-chan Message, error)
+
+// Control
+client.Interrupt(ctx) error
+client.StopTask(ctx) error
+client.SetPermissionMode(ctx, mode) error
+client.SetModel(ctx, model) error
+
+// MCP
+client.ReconnectMCPServer(ctx, name) error
+client.ToggleMCPServer(ctx, name, enabled) error
+client.GetMCPStatus(ctx) (*McpStatusResponse, error)
+
+// Info
+client.GetServerInfo() *ServerInfo
 ```
 
-### `Client`
+### Options Reference
 
-Full-featured client for interactive conversations.
-
-#### Methods:
-- `Connect(ctx)` - Establish connection
-- `Query(ctx, prompt)` - Send a query
-- `ReceiveMessages(ctx)` - Receive messages until ResultMessage
-- `Interrupt(ctx)` - Interrupt current operation
-- `SetPermissionMode(ctx, mode)` - Change permission mode
-- `SetModel(ctx, model)` - Change AI model
-- `ReconnectMCPServer(ctx, name)` - Reconnect an MCP server
-- `ToggleMCPServer(ctx, name, enabled)` - Toggle MCP server
-- `StopTask(ctx)` - Stop the running task
-- `GetServerInfo()` - Get server initialization info
-- `GetMCPStatus()` - Get MCP server status
-- `Close()` - Close the connection
-
-### Sessions API Functions
-
-- `ListSessions(ctx)` - List all sessions
-- `GetSessionMessages(ctx, sessionID)` - Get messages from a session
-- `RenameSession(ctx, sessionID, title)` - Rename a session
-- `TagSession(ctx, sessionID, tags...)` - Tag a session
-
-### Options
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `Model` | `*string` | AI model to use (`"opus"`, `"sonnet"`, `"haiku"`, `"inherit"`) |
-| `SystemPrompt` | `string` | Custom system prompt |
-| `CWD` | `*string` | Working directory |
-| `MaxTurns` | `*int` | Maximum conversation turns |
-| `MaxBudgetUSD` | `*float64` | Maximum budget in USD |
-| `PermissionMode` | `*PermissionMode` | Permission handling mode |
-| `CanUseTool` | `func` | Permission callback |
-| `Hooks` | `map` | Event hooks |
-| `MCPServers` | `map` | MCP server configurations |
-| `AllowedTools` | `[]string` | Tools to allow |
-| `DisallowedTools` | `[]string` | Tools to disallow |
-| `IncludePartialMessages` | `*bool` | Enable partial message streaming |
-| `Agents` | `[]AgentDefinition` | Agent definitions |
-| `SystemPromptPresets` | `[]SystemPromptPreset` | System prompt presets |
-| `ToolsPresets` | `[]ToolsPreset` | Tools presets |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Model` | `*string` | `"sonnet"` | AI model: `"opus"`, `"sonnet"`, `"haiku"` |
+| `SystemPrompt` | `string` | `""` | Custom system prompt |
+| `CWD` | `*string` | current dir | Working directory |
+| `MaxTurns` | `*int` | unlimited | Maximum conversation turns |
+| `MaxBudgetUSD` | `*float64` | unlimited | Maximum budget in USD |
+| `PermissionMode` | `*PermissionMode` | `default` | Permission handling mode |
+| `CanUseTool` | `func` | `nil` | Tool permission callback |
+| `Hooks` | `map` | `nil` | Event hooks |
+| `MCPServers` | `map` | `nil` | MCP server configurations |
+| `AllowedTools` | `[]string` | all | Tools to allow |
+| `DisallowedTools` | `[]string` | none | Tools to disallow |
+| `IncludePartialMessages` | `*bool` | `false` | Enable partial streaming |
+| `Agents` | `[]AgentDefinition` | `nil` | Custom agent definitions |
+| `CLIPath` | `*string` | auto | Path to Claude CLI |
+| `Env` | `map[string]string` | `nil` | Additional environment variables |
 
 ### Helper Functions
 
 ```go
-// Pointer helpers for optional fields
-types.String("value")     // *string
-types.Int(10)             // *int
-types.Float64(1.5)        // *float64
-types.Bool(true)          // *bool
-types.PermissionModePtr(types.PermissionModeAcceptEdits)  // *PermissionMode
+// Pointer helpers
+types.String("value")           // *string
+types.Int(10)                   // *int
+types.Float64(1.5)              // *float64
+types.Bool(true)                // *bool
+types.PermissionModePtr(mode)   // *PermissionMode
 
 // Schema helpers for MCP tools
-sdkmcp.Schema(props, required)    // Create input schema
-sdkmcp.StringProperty(desc)       // String property
-sdkmcp.NumberProperty(desc)      // Number property
-sdkmcp.BooleanProperty(desc)     // Boolean property
-sdkmcp.ObjectProperty(props)      // Object property
-sdkmcp.ArrayProperty(items)      // Array property
+sdkmcp.Schema(props, required)      // Full schema with required fields
+sdkmcp.SimpleSchema(props)          // Simple schema (no required fields)
+sdkmcp.StringProperty(desc)         // String property
+sdkmcp.NumberProperty(desc)         // Number property
+sdkmcp.BooleanProperty(desc)        // Boolean property
+sdkmcp.ObjectProperty(props, req)   // Nested object property
+sdkmcp.ArrayProperty(items)         // Array property
 ```
 
 ## Message Types
 
-- `ResultMessage` - Final result of a query (includes cost, duration, stop_reason)
-- `AssistantMessage` - Streaming text from Claude (includes model, usage)
-- `UserMessage` - User message
-- `SystemMessage` - System message (subtypes: task_started, task_progress, task_notification)
-- `StreamEvent` - Streaming event
-- `RateLimitEvent` - Rate limit event (Go SDK only)
+### Top-Level Messages
 
-### ResultMessage Fields
-
-```go
-type ResultMessage struct {
-    Subtype        string
-    DurationMS     int
-    DurationAPIMS  int
-    IsError        bool
-    NumTurns       int
-    SessionID      string
-    StopReason     *string           // "stop", "early_stop", "error", etc.
-    TotalCostUSD   *float64
-    Usage          map[string]interface{}  // Per-turn usage
-    Result         *string
-    StructuredOutput interface{}
-}
-```
+| Type | Description | Key Fields |
+|------|-------------|------------|
+| `ResultMessage` | Final result | `Result`, `SessionID`, `TotalCostUSD`, `DurationMS`, `NumTurns`, `StopReason` |
+| `AssistantMessage` | Claude's response | `Content`, `Model`, `Usage` |
+| `UserMessage` | User input | `Content` |
+| `SystemMessage` | System events | `Subtype`, `Data` |
+| `StreamEvent` | Streaming event | `Type`, `Data` |
+| `RateLimitEvent` | Rate limit info | `Type`, `Data` |
 
 ### Content Blocks
 
-- `TextBlock` - Text content
-- `ThinkingBlock` - Thinking content (extended thinking)
-- `ToolUseBlock` - Tool use request (id, name, input)
-- `ToolResultBlock` - Tool execution result (tool_use_id, content, is_error)
-- `GenericContentBlock` - Unknown block type (Go SDK only)
+| Type | Description | Key Fields |
+|------|-------------|------------|
+| `TextBlock` | Text content | `Text` |
+| `ThinkingBlock` | Extended thinking | `Thinking` |
+| `ToolUseBlock` | Tool request | `ID`, `Name`, `Input` |
+| `ToolResultBlock` | Tool result | `ToolUseID`, `Content`, `IsError` |
+| `GenericContentBlock` | Unknown type | `Type`, `Raw` |
 
 ## Error Handling
 
 ```go
-import "github.com/unitsvc/claude-agent-sdk-golang/errors"
+import (
+    "errors"
+    "log"
+
+    claude "github.com/unitsvc/claude-agent-sdk-golang"
+    sdkerrors "github.com/unitsvc/claude-agent-sdk-golang/errors"
+)
 
 msgChan, err := client.Query(ctx, "Hello")
 if err != nil {
-    // Check for sentinel errors
-    if errors.Is(err, claude.ErrNoAPIKey) {
-        log.Fatal("API key not configured")
-    }
-    if errors.Is(err, claude.ErrNotInstalled) {
-        log.Fatal("Claude CLI not installed")
+    // Check sentinel errors
+    switch {
+    case errors.Is(err, claude.ErrNoAPIKey):
+        log.Fatal("API key not configured. Run: claude login")
+
+    case errors.Is(err, claude.ErrNotInstalled):
+        log.Fatal("Claude CLI not installed. Run: npm install -g @anthropic-ai/claude-code")
+
+    case errors.Is(err, claude.ErrConnectionFailed):
+        log.Fatal("Connection failed. Is Claude CLI running?")
+
+    case errors.Is(err, claude.ErrTimeout):
+        log.Fatal("Operation timed out")
+
+    case errors.Is(err, claude.ErrInterrupted):
+        log.Println("Operation was interrupted")
+        return
     }
 
-    // Check for specific error types
-    var cliErr *errors.CLIError
+    // Check error types
+    var cliErr *sdkerrors.CLIError
     if errors.As(err, &cliErr) {
         log.Printf("CLI Error: %s (exit code: %d)", cliErr.Message, cliErr.ExitCode)
+        log.Printf("Stderr: %s", cliErr.Stderr)
     }
 
-    var connErr *errors.CLIConnectionError
-    if errors.As(err, &connErr) {
-        log.Printf("Connection Error: %s", connErr.Message)
+    var procErr *sdkerrors.ProcessError
+    if errors.As(err, &procErr) {
+        log.Printf("Process Error: %v", procErr)
     }
 
     log.Fatal(err)
 }
 ```
 
-**Available Sentinel Errors:**
-- `ErrNoAPIKey` - No API key configured
-- `ErrNotInstalled` - Claude CLI not installed
-- `ErrConnectionFailed` - Connection failed
-- `ErrTimeout` - Operation timed out
-- `ErrInterrupted` - Operation interrupted
-
 ## Examples
 
-See the [examples](examples/) directory for comprehensive usage examples:
+The [examples](examples/) directory contains comprehensive examples:
 
 | Example | Description |
 |---------|-------------|
-| `quick_start` | Basic usage examples |
-| `streaming_mode` | Message streaming patterns |
-| `streaming_interactive` | Interactive streaming |
-| `streaming_goroutines` | Goroutine-based streaming |
-| `hooks` | Hook system usage |
-| `tool_permission` | Permission callbacks |
-| `mcp_calculator` | MCP server example |
-| `mcp_sdk_simple` | Simple SDK MCP server |
-| `mcp_sdk_server` | Full SDK MCP server |
-| `mcp_control` | MCP server control |
+| `quick_start` | Basic usage patterns |
+| `streaming_mode` | Message streaming techniques |
+| `streaming_interactive` | Interactive streaming with context |
+| `streaming_goroutines` | Concurrent streaming patterns |
+| `hooks` | Hook system with all events |
+| `tool_permission` | Permission callback examples |
+| `mcp_calculator` | MCP server integration |
+| `mcp_sdk_simple` | Simple in-process MCP server |
+| `mcp_sdk_server` | Full-featured SDK MCP server |
+| `mcp_control` | MCP server runtime control |
 | `agents` | Custom agent definitions |
-| `system_prompt` | Custom system prompts |
-| `setting_sources` | Settings configuration |
+| `system_prompt` | System prompt configuration |
+| `setting_sources` | Settings and configuration |
 | `budget` | Budget management |
 | `include_partial_messages` | Partial message handling |
-| `stderr_callback` | Stderr handling |
-| `tools_option` | Tools configuration |
-| `filesystem_agents` | Filesystem agents |
-| `task_messages` | Task message handling |
-| `plugin_example` | Plugin usage |
-
-## Go SDK Advantages
-
-1. **More Hook Events** - SessionStart, SessionEnd (not in Python)
-2. **Better Schema Helpers** - Schema(), SimpleSchema(), StringProperty() etc.
-3. **More Tests** - 350+ unit tests, 50+ E2E tests
-4. **Type Safety** - Compile-time type checking
-5. **Concurrency** - Goroutine + channel pattern
-6. **Exported Transport** - Custom transport implementation support
-7. **Sentinel Errors** - ErrNoAPIKey, ErrNotInstalled, etc.
-8. **RateLimitEvent** - Parsed rate limit events (Go SDK only)
-9. **GenericContentBlock** - Forward-compatible unknown block handling
+| `stderr_callback` | Stderr output handling |
+| `tools_option` | Tool configuration |
+| `filesystem_agents` | File system operations |
+| `task_messages` | Task event handling |
+| `plugin_example` | Plugin integration |
 
 ## Testing
 
@@ -580,15 +782,207 @@ go tool cover -html=coverage.out
 go test -short ./...
 
 # Run specific package
-go test ./client/...
+go test ./internal/sessions/... -v
+
+# Run with race detector
+go test -race ./...
 ```
+
+## FAQ
+
+### How do I set a custom working directory?
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    CWD: types.String("/path/to/project"),
+})
+```
+
+### How do I limit the number of turns?
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    MaxTurns: types.Int(5),
+})
+```
+
+### How do I set a budget limit?
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    MaxBudgetUSD: types.Float64(1.0),  // $1.00 max
+})
+```
+
+### How do I use a specific model?
+
+```go
+client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
+    Model: types.String(types.ModelOpus),  // "opus", "sonnet", "haiku"
+})
+```
+
+### How do I handle Ctrl+C gracefully?
+
+```go
+ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+defer cancel()
+
+client := claude.NewClientWithOptions(opts)
+defer client.Close()
+
+if err := client.Connect(ctx); err != nil {
+    log.Fatal(err)
+}
+
+// Use ctx for all operations - it will cancel on Ctrl+C
+msgChan, err := client.Query(ctx, "Hello")
+```
+
+### How do I access the session ID after a query?
+
+```go
+for msg := range msgChan {
+    if m, ok := msg.(*types.ResultMessage); ok {
+        fmt.Printf("Session ID: %s\n", m.SessionID)
+    }
+}
+```
+
+## Troubleshooting
+
+### "Claude CLI not installed"
+
+```bash
+# Install Claude CLI
+npm install -g @anthropic-ai/claude-code
+
+# Verify installation
+claude --version
+```
+
+### "API key not configured"
+
+```bash
+# Login to Anthropic
+claude login
+
+# Or set environment variable
+export ANTHROPIC_API_KEY=your-key-here
+```
+
+### "Connection failed"
+
+1. Check if Claude CLI is in your PATH
+2. Try running `claude` directly in terminal
+3. Check for any CLI updates: `npm update -g @anthropic-ai/claude-code`
+
+### "Tool not found"
+
+MCP tools are named with the pattern `mcp__<server>__<tool>`:
+
+```go
+// Correct tool name format
+AllowedTools: []string{"mcp__calc__add", "mcp__calc__multiply"}
+```
+
+### "Context deadline exceeded"
+
+Increase timeout for long-running queries:
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+```
+
+## Migration Guide
+
+### From Python SDK
+
+| Python | Go |
+|--------|-----|
+| `from claude_agent_sdk import Query` | `import claude "github.com/unitsvc/claude-agent-sdk-golang"` |
+| `async for msg in query(...)` | `for msg := range claude.Query(...)` |
+| `options=ClaudeAgentOptions(...)` | `&types.ClaudeAgentOptions{...}` |
+| `permission_result_allow()` | `types.PermissionResultAllow{Behavior: "allow"}` |
+| `@tool` decorator | `sdkmcp.Tool(...)` |
+
+### Key Differences
+
+1. **Async vs Channels**: Python uses `async/await`, Go uses channels
+2. **Options**: Go uses struct pointers for optional fields
+3. **Errors**: Go returns errors as values, Python raises exceptions
+4. **Context**: Go requires explicit context for cancellation
+
+## Changelog
+
+### v0.1.50 (2026-03-23)
+
+- Added `GetSessionInfo()` for single-session lookup
+- Changed `SDKSessionInfo.FileSize` to optional for remote storage
+- Updated to Python SDK v0.1.50
+
+### v0.1.49
+
+- Added `RenameSession()` and `TagSession()` functions
+- Added `Tag` and `CreatedAt` fields to `SDKSessionInfo`
+- Fixed session title and summary chain extraction
+
+### v0.1.48
+
+- Added fine-grained tool streaming support
+- Added `Usage` field to `AssistantMessage`
+- Fixed graceful subprocess shutdown
+
+### v0.1.46
+
+- Added Sessions API: `ListSessions()`, `GetSessionMessages()`
+- Added agent context fields to hook inputs
+
+### v0.1.45
+
+- Added `StopReason` field to `ResultMessage`
+- Added task message types
+- Added MCP control methods: `ReconnectMCPServer()`, `ToggleMCPServer()`, `StopTask()`
+
+See [CHANGELOG.md](CHANGELOG.md) for full history.
+
+## Go SDK Advantages
+
+| Feature | Python SDK | Go SDK |
+|---------|-----------|--------|
+| Hook Events | 10 | 12 (+SessionStart, SessionEnd) |
+| Unit Tests | 153 | 360+ |
+| E2E Tests | 32 | 55+ |
+| Schema Helpers | Limited | Full (Schema, SimpleSchema, Property helpers) |
+| Transport | Internal | Exported interface |
+| Rate Limit Events | No | Yes (RateLimitEvent) |
+| Generic Content Blocks | No | Yes (GenericContentBlock) |
+| Concurrent Safe | Partial | Yes (channel-based) |
+| Memory Footprint | Higher | Lower |
+
+## Version
+
+**Current Version**: 0.1.50-a7fd631
+
+Synced with [Python SDK v0.1.50](https://github.com/anthropics/claude-agent-sdk-python).
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Version
+## Contributing
 
-**Current Version**: 0.1.48-971994c
+Contributions are welcome! Please:
 
-Synced with Python SDK v0.1.48+.
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Submit a pull request
+
+## Related Projects
+
+- [Claude Agent SDK (Python)](https://github.com/anthropics/claude-agent-sdk-python) - Official Python SDK
+- [Claude Code](https://github.com/anthropics/claude-code) - Official CLI tool
+- [MCP Specification](https://modelcontextprotocol.io/) - Model Context Protocol
+- [Anthropic API](https://docs.anthropic.com/) - Anthropic API documentation
