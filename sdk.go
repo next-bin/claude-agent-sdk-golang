@@ -218,6 +218,29 @@ func GetSessionMessages(sessionID, directory string, limit, offset int) ([]types
 	return sessions.GetSessionMessages(sessionID, directory, limit, offset)
 }
 
+// GetSessionInfo reads metadata for a single session by ID.
+//
+// Wraps readSessionLite for one file — no O(n) directory scan.
+// Directory resolution matches GetSessionMessages: directory is the project path;
+// when omitted, all project directories are searched for the session file.
+//
+// Returns SDKSessionInfo for the session, or nil if the session file
+// is not found, is a sidechain session, or has no extractable summary.
+//
+// Example:
+//
+//	// Look up a session in a specific project
+//	info := claude.GetSessionInfo("550e8400-e29b-41d4-a716-446655440000", "/path/to/project")
+//	if info != nil {
+//	    fmt.Println(info.Summary)
+//	}
+//
+//	// Search all projects for a session
+//	info := claude.GetSessionInfo("550e8400-e29b-41d4-a716-446655440000", "")
+func GetSessionInfo(sessionID, directory string) *types.SDKSessionInfo {
+	return sessions.GetSessionInfo(sessionID, directory)
+}
+
 // ============================================================================
 // Session Mutations API (v0.1.49+)
 // ============================================================================

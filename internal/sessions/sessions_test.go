@@ -184,3 +184,68 @@ func TestExtractFirstPromptFromHead(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSessionInfo_InvalidUUID(t *testing.T) {
+	result := GetSessionInfo("not-a-uuid", "")
+	if result != nil {
+		t.Errorf("GetSessionInfo with invalid UUID should return nil, got %v", result)
+	}
+}
+
+func TestGetSessionInfo_NotFound(t *testing.T) {
+	result := GetSessionInfo("550e8400-e29b-41d4-a716-446655440000", "/nonexistent/path")
+	if result != nil {
+		t.Errorf("GetSessionInfo with nonexistent path should return nil, got %v", result)
+	}
+}
+
+func TestCoalesce(t *testing.T) {
+	tests := []struct {
+		values   []string
+		expected string
+	}{
+		{[]string{}, ""},
+		{[]string{""}, ""},
+		{[]string{"", "value"}, "value"},
+		{[]string{"first", "second"}, "first"},
+		{[]string{"", "", "third"}, "third"},
+	}
+
+	for _, tt := range tests {
+		result := coalesce(tt.values...)
+		if result != tt.expected {
+			t.Errorf("coalesce(%v) = %q, want %q", tt.values, result, tt.expected)
+		}
+	}
+}
+
+func TestParseTimestamp(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64 // 0 means expect failure
+	}{
+		{"2024-01-15T10:30:00Z", 1705314600000},
+		{"2024-01-15T10:30:00.123Z", 1705314600123},
+		{"2024-01-15T10:30:00.123456789Z", 1705314600123},
+		{"invalid", 0},
+		{"", 0},
+	}
+
+	for _, tt := range tests {
+		result := parseTimestamp(tt.input)
+		if tt.expected == 0 {
+			if result != 0 {
+				t.Errorf("parseTimestamp(%q) = %d, want 0", tt.input, result)
+			}
+		} else {
+			// Allow some tolerance for timestamp parsing
+			diff := result - tt.expected
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > 1000 { // within 1 second
+				t.Errorf("parseTimestamp(%q) = %d, want %d", tt.input, result, tt.expected)
+			}
+		}
+	}
+}

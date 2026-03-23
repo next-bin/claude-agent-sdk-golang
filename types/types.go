@@ -1538,10 +1538,11 @@ type SDKSessionInfo struct {
 	// CreatedAt is the session creation time in milliseconds since epoch.
 	CreatedAt *int64 `json:"created_at,omitempty"`
 
-	// FileSize is the session file size in bytes.
-	FileSize int64 `json:"file_size"`
+	// FileSize is the session file size in bytes. Only populated for local
+	// JSONL storage; may be nil for remote storage backends.
+	FileSize *int64 `json:"file_size,omitempty"`
 
-	// CustomTitle is the user-set session title via /rename.
+	// CustomTitle is the session title — user-set custom title or AI-generated title.
 	CustomTitle *string `json:"custom_title,omitempty"`
 
 	// Tag is the session tag set via tag_session.
