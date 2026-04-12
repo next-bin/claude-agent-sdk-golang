@@ -139,7 +139,7 @@ func createClientWithBasicPermissionHandler() *client.Client {
 
 // createClientWithInputModification creates a client that demonstrates
 // PermissionResultAllow with UpdatedInput to redirect file writes to a safe directory.
-// This matches Python's "redirect writes to a safe directory" feature.
+// This matches upstream's "redirect writes to a safe directory" feature.
 func createClientWithInputModification() *client.Client {
 	return client.NewWithOptions(&types.ClaudeAgentOptions{
 		CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPermissionContext) (types.PermissionResult, error) {
@@ -165,7 +165,7 @@ func createClientWithInputModification() *client.Client {
 						}, nil
 					}
 
-					// Redirect writes to a safe directory (matching Python example)
+					// Redirect writes to a safe directory (matching upstream example)
 					if !strings.HasPrefix(filePath, "/tmp/") && !strings.HasPrefix(filePath, "./") {
 						// Extract filename and redirect to ./safe_output/
 						safePath := "./safe_output/" + filepath.Base(filePath)
@@ -189,7 +189,7 @@ func createClientWithInputModification() *client.Client {
 				return types.PermissionResultAllow{Behavior: "allow"}, nil
 			}
 
-			// Check dangerous bash commands (matching Python example)
+			// Check dangerous bash commands (matching upstream example)
 			if toolName == "Bash" {
 				command, _ := input["command"].(string)
 				dangerousCommands := []string{"rm -rf", "sudo", "chmod 777", "dd if=", "mkfs"}

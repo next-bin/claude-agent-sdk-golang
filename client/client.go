@@ -215,7 +215,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		return err
 	}
 
-	// Handle prompt input - send user message after initialize (matching Python SDK behavior)
+	// Handle prompt input - send user message after initialize (matching upstream SDK behavior)
 	if len(prompt) > 0 {
 		switch p := prompt[0].(type) {
 		case string:
@@ -606,7 +606,7 @@ func (c *Client) ReceiveMessages(ctx context.Context) <-chan types.Message {
 // Query returns an error if the client is not connected.
 //
 // Important: To receive responses, call ReceiveMessages() once before or after
-// Query and reuse the returned channel for all queries. This matches the Python
+// Query and reuse the returned channel for all queries. This matches the upstream
 // SDK pattern where query() only sends messages and receive_messages() is called
 // separately.
 func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...string) error {
@@ -781,6 +781,20 @@ func (c *Client) GetMCPStatus(ctx context.Context) (map[string]interface{}, erro
 		return nil, errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
 	}
 	return c.query.GetMCPStatus(ctx)
+}
+
+// GetContextUsage returns a breakdown of current context window usage by category.
+//
+// Returns the same data shown by the /context command in the CLI,
+// including token counts per category, total usage, and detailed
+// breakdowns of MCP tools, memory files, and agents.
+//
+// GetContextUsage returns an error if the client is not connected.
+func (c *Client) GetContextUsage(ctx context.Context) (types.ContextUsageResponse, error) {
+	if !c.connected || c.query == nil {
+		return types.ContextUsageResponse{}, errors.NewCLIConnectionError("Not connected. Call Connect() first.", nil)
+	}
+	return c.query.GetContextUsage(ctx)
 }
 
 // GetServerInfo returns server initialization information including:

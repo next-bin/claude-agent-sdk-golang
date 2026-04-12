@@ -7,7 +7,7 @@
 // 3. Concurrent query handling
 // 4. Context cancellation and timeouts
 //
-// Similar to Python's trio example but using Go's native concurrency primitives.
+// Similar to upstream's trio example but using Go's native concurrency primitives.
 //
 // Prerequisites:
 // - Claude CLI installed: npm install -g @anthropic-ai/claude-code

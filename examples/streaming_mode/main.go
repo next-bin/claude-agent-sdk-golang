@@ -284,7 +284,7 @@ func exampleManualMessageHandling(ctx context.Context) error {
 
 	// Manually process messages with custom logic
 	languagesFound := []string{}
-	targetLanguages := []string{"Python", "JavaScript", "Java", "C++", "Go", "Rust", "Ruby"}
+	targetLanguages := []string{"upstream", "JavaScript", "Java", "C++", "Go", "Rust", "Ruby"}
 
 	for msg := range msgChan {
 		switch m := msg.(type) {

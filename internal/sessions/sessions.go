@@ -27,7 +27,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// Constants matching Python SDK
+// Constants matching upstream SDK
 const (
 	// LiteReadBufSize is the size of the head/tail buffer for lite metadata reads.
 	LiteReadBufSize = 65536
@@ -38,7 +38,7 @@ const (
 )
 
 // nfcNormalize applies Unicode NFC normalization to a string.
-// This matches Python's unicodedata.normalize("NFC", s) behavior.
+// This matches upstream's unicodedata.normalize("NFC", s) behavior.
 func nfcNormalize(s string) string {
 	// Fast path: if string is already valid UTF-8 and ASCII, no normalization needed
 	// Most paths are ASCII, so this avoids unnecessary work
@@ -367,7 +367,7 @@ func normalizePath(d string) string {
 		resolved = d
 	}
 
-	// Normalize unicode to NFC form (matching Python's unicodedata.normalize("NFC", ...))
+	// Normalize unicode to NFC form (matching upstream's unicodedata.normalize("NFC", ...))
 	return nfcNormalize(resolved)
 }
 
@@ -1489,6 +1489,352 @@ func tryAppend(path, data string) bool {
 
 	_, err = f.WriteString(data)
 	return err == nil
+}
+
+// ============================================================================
+// DeleteSession (v0.1.50)
+// ============================================================================
+
+// DeleteSession deletes a session file.
+//
+// Parameters:
+//   - sessionID: UUID of the session to delete.
+//   - directory: Project directory path (same semantics as ListSessions).
+//     When empty, all project directories are searched for the session file.
+//
+// Returns an error if:
+//   - sessionID is not a valid UUID
+//   - the session file cannot be found
+func DeleteSession(sessionID, directory string) error {
+	if !isValidUUID(sessionID) {
+		return fmt.Errorf("invalid session_id: %s", sessionID)
+	}
+
+	fileName := sessionID + ".jsonl"
+
+	if directory != "" {
+		canonical := normalizePath(directory)
+
+		// Try the exact/prefix-matched project directory first.
+		projectDir := findProjectDir(canonical)
+		if projectDir != "" {
+			filePath := filepath.Join(projectDir, fileName)
+			if tryDelete(filePath) {
+				return nil
+			}
+		}
+
+		// Worktree fallback
+		worktreePaths := getWorktreePaths(canonical)
+		for _, wt := range worktreePaths {
+			if wt == canonical {
+				continue
+			}
+			wtProjectDir := findProjectDir(wt)
+			if wtProjectDir != "" {
+				filePath := filepath.Join(wtProjectDir, fileName)
+				if tryDelete(filePath) {
+					return nil
+				}
+			}
+		}
+
+		return fmt.Errorf("session %s not found in project directory for %s", sessionID, directory)
+	}
+
+	// No directory — search all project directories
+	projectsDir := getProjectsDir()
+	dirents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return fmt.Errorf("session %s not found (no projects directory)", sessionID)
+	}
+
+	for _, entry := range dirents {
+		filePath := filepath.Join(projectsDir, entry.Name(), fileName)
+		if tryDelete(filePath) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("session %s not found in any project directory", sessionID)
+}
+
+// tryDelete tries to delete a session file.
+// Returns true if deletion succeeded, false if file doesn't exist.
+func tryDelete(path string) bool {
+	err := os.Remove(path)
+	return err == nil
+}
+
+// ============================================================================
+// ForkSession (v0.1.50)
+// ============================================================================
+
+// ForkSessionResult represents the result of a fork_session operation.
+type ForkSessionResult struct {
+	SessionID string `json:"session_id"`
+}
+
+// ForkSession creates a fork (copy) of a session with remapped UUIDs.
+//
+// The fork preserves the conversation structure but:
+//   - Assigns new UUIDs to all messages
+//   - Remaps parentUuid references
+//   - Sets a new sessionId
+//   - Adds forkedFrom field pointing to original
+//   - Clears stale fields (teamName, agentName, slug)
+//
+// Parameters:
+//   - sessionID: UUID of the session to fork.
+//   - directory: Project directory path. When empty, searches all projects.
+//   - upToMessageID: Optional UUID to slice the fork at that message (inclusive).
+//   - title: Optional custom title for the fork. Default is original title + " (fork)".
+//
+// Returns ForkSessionResult with the new session ID, or an error if:
+//   - sessionID is not a valid UUID
+//   - upToMessageID is provided but not a valid UUID
+//   - the session file cannot be found
+//   - upToMessageID is not found in the session
+func ForkSession(sessionID, directory string, upToMessageID *string, title *string) (*ForkSessionResult, error) {
+	if !isValidUUID(sessionID) {
+		return nil, fmt.Errorf("invalid session_id: %s", sessionID)
+	}
+
+	if upToMessageID != nil && !isValidUUID(*upToMessageID) {
+		return nil, fmt.Errorf("invalid up_to_message_id: %s", *upToMessageID)
+	}
+
+	// Read original session content
+	content, err := readSessionFile(sessionID, directory)
+	if err != nil {
+		return nil, fmt.Errorf("session %s not found", sessionID)
+	}
+
+	// Parse entries
+	entries := parseTranscriptEntries(content)
+
+	// Find the slice point if upToMessageID is specified
+	var sliceIndex int = -1
+	if upToMessageID != nil {
+		for i, entry := range entries {
+			if uuid, ok := entry["uuid"].(string); ok && uuid == *upToMessageID {
+				sliceIndex = i
+				break
+			}
+		}
+		if sliceIndex == -1 {
+			return nil, fmt.Errorf("message %s not found in session", *upToMessageID)
+		}
+	}
+
+	// Generate new session ID
+	newSessionID := generateUUID()
+
+	// Build UUID remapping table
+	uuidMap := make(map[string]string)
+	for _, entry := range entries {
+		if originalUUID, ok := entry["uuid"].(string); ok {
+			uuidMap[originalUUID] = generateUUID()
+		}
+	}
+
+	// Fork entries
+	var forkedEntries []map[string]interface{}
+	for i, entry := range entries {
+		if sliceIndex >= 0 && i > sliceIndex {
+			break // Stop after slice point
+		}
+
+		forked := make(map[string]interface{})
+		for k, v := range entry {
+			// Skip stale fields
+			if k == "teamName" || k == "agentName" || k == "slug" {
+				continue
+			}
+
+			// Remap UUIDs
+			if k == "uuid" {
+				if originalUUID, ok := v.(string); ok {
+					forked["uuid"] = uuidMap[originalUUID]
+				}
+				continue
+			}
+			if k == "parentUuid" {
+				if originalUUID, ok := v.(string); ok {
+					if originalUUID == "" {
+						// Preserve empty parentUuid for root message
+						forked["parentUuid"] = ""
+					} else if newUUID, exists := uuidMap[originalUUID]; exists {
+						forked["parentUuid"] = newUUID
+					}
+				}
+				continue
+			}
+			if k == "sessionId" {
+				forked["sessionId"] = newSessionID
+				continue
+			}
+
+			// Add forkedFrom for user/assistant messages
+			if entry["type"] == "user" || entry["type"] == "assistant" {
+				if k == "message" {
+					forked["forkedFrom"] = map[string]interface{}{
+						"sessionId": sessionID,
+					}
+				}
+			}
+
+			forked[k] = v
+		}
+		forkedEntries = append(forkedEntries, forked)
+	}
+
+	// Determine fork title
+	forkTitle := ""
+	if title != nil && *title != "" {
+		forkTitle = *title
+	} else {
+		// Default: find original title/summary and append " (fork)"
+		originalTitle := extractLastJSONStringField(content, "customTitle")
+		if originalTitle == "" {
+			originalTitle = extractLastJSONStringField(content, "aiTitle")
+		}
+		if originalTitle == "" {
+			originalTitle = extractFirstPromptFromHead(content[:min(len(content), LiteReadBufSize)])
+		}
+		if originalTitle != "" {
+			forkTitle = originalTitle + " (fork)"
+		}
+	}
+
+	// Add custom-title entry for the fork
+	if forkTitle != "" {
+		titleEntry := map[string]interface{}{
+			"type":         "custom-title",
+			"customTitle":  forkTitle,
+			"sessionId":    newSessionID,
+		}
+		forkedEntries = append(forkedEntries, titleEntry)
+	}
+
+	// Write forked session file
+	var lines []string
+	for _, entry := range forkedEntries {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			continue
+		}
+		lines = append(lines, string(data))
+	}
+
+	forkContent := strings.Join(lines, "\n") + "\n"
+
+	// Determine target directory
+	targetDir := ""
+	if directory != "" {
+		canonical := normalizePath(directory)
+		targetDir = findProjectDir(canonical)
+		if targetDir == "" {
+			// Try worktrees
+			worktreePaths := getWorktreePaths(canonical)
+			for _, wt := range worktreePaths {
+				if wt != canonical {
+					wtProjectDir := findProjectDir(wt)
+					if wtProjectDir != "" {
+						targetDir = wtProjectDir
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if targetDir == "" {
+		// Find where the original session lives
+		originalPath, err := findSessionFilePath(sessionID, directory)
+		if err != nil {
+			return nil, err
+		}
+		targetDir = filepath.Dir(originalPath)
+	}
+
+	// Write the fork file
+	forkPath := filepath.Join(targetDir, newSessionID+".jsonl")
+	if err := os.WriteFile(forkPath, []byte(forkContent), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write fork session: %w", err)
+	}
+
+	return &ForkSessionResult{SessionID: newSessionID}, nil
+}
+
+// findSessionFilePath finds the file path for a session.
+func findSessionFilePath(sessionID, directory string) (string, error) {
+	fileName := sessionID + ".jsonl"
+
+	if directory != "" {
+		canonical := normalizePath(directory)
+		projectDir := findProjectDir(canonical)
+		if projectDir != "" {
+			path := filepath.Join(projectDir, fileName)
+			if _, err := os.Stat(path); err == nil {
+				return path, nil
+			}
+		}
+
+		worktreePaths := getWorktreePaths(canonical)
+		for _, wt := range worktreePaths {
+			if wt != canonical {
+				wtProjectDir := findProjectDir(wt)
+				if wtProjectDir != "" {
+					path := filepath.Join(wtProjectDir, fileName)
+					if _, err := os.Stat(path); err == nil {
+						return path, nil
+					}
+				}
+			}
+		}
+
+		return "", fmt.Errorf("session %s not found", sessionID)
+	}
+
+	// Search all project directories
+	projectsDir := getProjectsDir()
+	dirents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return "", fmt.Errorf("session %s not found", sessionID)
+	}
+
+	for _, entry := range dirents {
+		path := filepath.Join(projectsDir, entry.Name(), fileName)
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("session %s not found", sessionID)
+}
+
+// generateUUID generates a new UUID string.
+func generateUUID() string {
+	b := make([]byte, 16)
+	// Use timestamp-based pseudo-random for simplicity
+	now := time.Now().UnixNano()
+	for i := 0; i < 16; i++ {
+		b[i] = byte(now >> (i * 8))
+	}
+	// Set version 4 and variant bits
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant
+
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // ============================================================================

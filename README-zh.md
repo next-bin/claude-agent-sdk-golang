@@ -33,7 +33,7 @@
 
 | 特性                  | 描述                                          |
 | --------------------- | --------------------------------------------- |
-| 🔄 **完整 API 兼容**  | 与 Python SDK v0.1.50 完全兼容                |
+| 🔄 **完整 API 兼容**  | 与 上游 SDK v0.1.50 完全兼容                |
 | 📡 **流式消息**       | 通过 Go channel 实现实时消息流                |
 | 🔌 **MCP 服务器支持** | 支持 Stdio、SSE、HTTP 和进程内 SDK MCP 服务器 |
 | 🪝 **Hook 系统**      | 12 种 hook 事件用于工具生命周期管理           |
@@ -1216,9 +1216,9 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ## 迁移指南
 
-### 从 Python SDK 迁移
+### 从 上游 SDK 迁移
 
-| Python                               | Go                                                            |
+| 上游                               | Go                                                            |
 | ------------------------------------ | ------------------------------------------------------------- |
 | `from claude_agent_sdk import Query` | `import claude "github.com/next-bin/claude-agent-sdk-golang"` |
 | `async for msg in query(...)`        | `for msg := range claude.Query(...)`                          |
@@ -1228,9 +1228,9 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ### 主要区别
 
-1. **异步 vs Channel**：Python 使用 `async/await`，Go 使用 channel
+1. **异步 vs Channel**：上游 使用 `async/await`，Go 使用 channel
 2. **选项**：Go 使用结构体指针表示可选字段
-3. **错误**：Go 将错误作为值返回，Python 抛出异常
+3. **错误**：Go 将错误作为值返回，上游 抛出异常
 4. **Context**：Go 需要显式的 context 用于取消
 
 ## 更新日志
@@ -1239,7 +1239,7 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 - 新增 `GetSessionInfo()` 用于单会话查询
 - `SDKSessionInfo.FileSize` 改为可选，支持远程存储
-- 更新至 Python SDK v0.1.50
+- 更新至 上游 SDK v0.1.50
 
 ### v0.1.49
 
@@ -1268,7 +1268,7 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ## Go SDK 优势
 
-| 功能            | Python SDK | Go SDK                                         |
+| 功能            | 上游 SDK | Go SDK                                         |
 | --------------- | ---------- | ---------------------------------------------- |
 | Hook 事件       | 10         | 12 (+SessionStart, SessionEnd)                 |
 | 单元测试        | 153        | 360+                                           |
@@ -1284,7 +1284,7 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 **当前版本**: 0.1.50-a7fd631
 
-与 [Python SDK v0.1.50](https://github.com/anthropics/claude-agent-sdk-python) 同步。
+与 [上游 SDK v0.1.50](https://github.com/anthropics/claude-agent-sdk-python) 同步。
 
 ## 许可证
 
@@ -1318,7 +1318,7 @@ go vet ./...
 
 ## 相关项目
 
-- [Claude Agent SDK (Python)](https://github.com/anthropics/claude-agent-sdk-python) - 官方 Python SDK
+- [Claude Agent SDK (上游)](https://github.com/anthropics/claude-agent-sdk-python) - 官方 上游 SDK
 - [Claude Code](https://github.com/anthropics/claude-code) - 官方 CLI 工具
 - [MCP 规范](https://modelcontextprotocol.io/) - 模型上下文协议
 - [Anthropic API](https://docs.anthropic.com/) - Anthropic API 文档

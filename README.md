@@ -6,7 +6,7 @@
 
 [中文文档](README-zh.md)
 
-A Go SDK for building AI agents with Claude. This SDK provides a Go implementation of the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python), enabling you to build AI agents that can use tools, handle permissions, and interact with MCP servers.
+A Go SDK for building AI agents with Claude. This SDK provides a Go implementation of the Claude Agent SDK, enabling you to build AI agents that can use tools, handle permissions, and interact with MCP servers.
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@ A Go SDK for building AI agents with Claude. This SDK provides a Go implementati
 
 | Feature                       | Description                                        |
 | ----------------------------- | -------------------------------------------------- |
-| 🔄 **Full API Compatibility** | Compatible with Python SDK v0.1.50                 |
+| 🔄 **Full API Compatibility** | Compatible with upstream SDK v0.1.58                 |
 | 📡 **Streaming Messages**     | Real-time message streaming via Go channels        |
 | 🔌 **MCP Server Support**     | Stdio, SSE, HTTP, and in-process SDK MCP servers   |
 | 🪝 **Hook System**            | 12 hook events for tool lifecycle management       |
@@ -1216,9 +1216,9 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ## Migration Guide
 
-### From Python SDK
+### From Other Languages
 
-| Python                               | Go                                                            |
+| Upstream SDK                          | Go                                                            |
 | ------------------------------------ | ------------------------------------------------------------- |
 | `from claude_agent_sdk import Query` | `import claude "github.com/next-bin/claude-agent-sdk-golang"` |
 | `async for msg in query(...)`        | `for msg := range claude.Query(...)`                          |
@@ -1228,18 +1228,32 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ### Key Differences
 
-1. **Async vs Channels**: Python uses `async/await`, Go uses channels
+1. **Async vs Channels**: Upstream uses `async/await`, Go uses channels
 2. **Options**: Go uses struct pointers for optional fields
-3. **Errors**: Go returns errors as values, Python raises exceptions
+3. **Errors**: Go returns errors as values, upstream raises exceptions
 4. **Context**: Go requires explicit context for cancellation
 
 ## Changelog
+
+### v0.1.58 (2026-04-12)
+
+- Added `GetContextUsage()` to Client for context window usage breakdown
+- Added `ContextUsageCategory` and `ContextUsageResponse` types
+- Added `DeleteSession()` session mutation function
+- Added `ForkSession()` session mutation with UUID remapping
+- Added `ForkSessionResult` type
+- Added `SystemPromptFile` type for file-based system prompts
+- Added `TaskBudget` type for API-side token budget
+- Added `PermissionModeDontAsk` and `PermissionModeAuto` constants
+- Added transport support for `--task-budget` and `--system-prompt-file` CLI flags
+- Added E2E tests for session mutations
+- Added comprehensive unit tests for sessions mutations
 
 ### v0.1.50 (2026-03-23)
 
 - Added `GetSessionInfo()` for single-session lookup
 - Changed `SDKSessionInfo.FileSize` to optional for remote storage
-- Updated to Python SDK v0.1.50
+- Updated to upstream SDK v0.1.50
 
 ### v0.1.49
 
@@ -1268,8 +1282,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 ## Go SDK Advantages
 
-| Feature                | Python SDK | Go SDK                                        |
-| ---------------------- | ---------- | --------------------------------------------- |
+| Feature                | Upstream SDK | Go SDK                                        |
+| ---------------------- | ------------ | --------------------------------------------- |
 | Hook Events            | 10         | 12 (+SessionStart, SessionEnd)                |
 | Unit Tests             | 153        | 360+                                          |
 | E2E Tests              | 32         | 55+                                           |
@@ -1282,9 +1296,9 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 ## Version
 
-**Current Version**: 0.1.50-a7fd631
+**Current Version**: 0.1.58-c26fd62
 
-Synced with [Python SDK v0.1.50](https://github.com/anthropics/claude-agent-sdk-python).
+Synced with upstream SDK v0.1.58.
 
 ## License
 
@@ -1318,7 +1332,7 @@ go vet ./...
 
 ## Related Projects
 
-- [Claude Agent SDK (Python)](https://github.com/anthropics/claude-agent-sdk-python) - Official Python SDK
+- [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-python) - Official upstream SDK
 - [Claude Code](https://github.com/anthropics/claude-code) - Official CLI tool
 - [MCP Specification](https://modelcontextprotocol.io/) - Model Context Protocol
 - [Anthropic API](https://docs.anthropic.com/) - Anthropic API documentation

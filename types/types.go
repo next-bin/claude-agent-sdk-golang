@@ -18,6 +18,8 @@ const (
 	PermissionModeAcceptEdits       PermissionMode = "acceptEdits"
 	PermissionModePlan              PermissionMode = "plan"
 	PermissionModeBypassPermissions PermissionMode = "bypassPermissions"
+	PermissionModeDontAsk           PermissionMode = "dontAsk"
+	PermissionModeAuto              PermissionMode = "auto"
 )
 
 // SdkBeta represents SDK beta features - see https://docs.anthropic.com/en/api/beta-headers
@@ -69,6 +71,19 @@ type SystemPromptPreset struct {
 type ToolsPreset struct {
 	Type   string `json:"type"`   // Always "preset"
 	Preset string `json:"preset"` // Always "claude_code"
+}
+
+// SystemPromptFile represents a system prompt file configuration.
+type SystemPromptFile struct {
+	Type string `json:"type"` // Always "file"
+	Path string `json:"path"` // Path to the system prompt file
+}
+
+// TaskBudget represents API-side task budget in tokens.
+// When set, the model is made aware of its remaining token budget so it can
+// pace tool use and wrap up before the limit.
+type TaskBudget struct {
+	Total int `json:"total"` // Total token budget
 }
 
 // AgentDefinition represents an agent definition configuration.
@@ -1246,6 +1261,11 @@ type ClaudeAgentOptions struct {
 
 	// Enable file checkpointing to track file changes during the session
 	EnableFileCheckpointing bool `json:"enable_file_checkpointing,omitempty"`
+
+	// API-side task budget in tokens. When set, the model is made aware of
+	// its remaining token budget so it can pace tool use and wrap up before
+	// the limit.
+	TaskBudget *TaskBudget `json:"task_budget,omitempty"`
 }
 
 // ============================================================================
@@ -1574,4 +1594,53 @@ type SessionMessage struct {
 
 	// ParentToolUseID is always nil for top-level conversation messages.
 	ParentToolUseID *string `json:"parent_tool_use_id,omitempty"`
+}
+
+// ============================================================================
+// Context Usage Types (returned by get_context_usage)
+// ============================================================================
+
+// ContextUsageCategory represents a single context usage category
+// (system prompt, tools, messages, etc.).
+type ContextUsageCategory struct {
+	Name       string `json:"name"`
+	Tokens     int    `json:"tokens"`
+	Color      string `json:"color"`
+	IsDeferred *bool  `json:"isDeferred,omitempty"`
+}
+
+// ContextUsageResponse provides a breakdown of current context window usage
+// by category, matching the data shown by the /context command in the CLI.
+type ContextUsageResponse struct {
+	Categories          []ContextUsageCategory   `json:"categories"`
+	TotalTokens         int                      `json:"totalTokens"`
+	MaxTokens           int                      `json:"maxTokens"`
+	RawMaxTokens        int                      `json:"rawMaxTokens"`
+	Percentage          float64                  `json:"percentage"`
+	Model               string                   `json:"model"`
+	IsAutoCompactEnabled bool                     `json:"isAutoCompactEnabled"`
+	MemoryFiles         []map[string]interface{} `json:"memoryFiles"`
+	MCPTools            []map[string]interface{} `json:"mcpTools"`
+	Agents              []map[string]interface{} `json:"agents"`
+	GridRows            [][]map[string]interface{} `json:"gridRows"`
+
+	// Optional fields
+	AutoCompactThreshold *int                     `json:"autoCompactThreshold,omitempty"`
+	DeferredBuiltinTools []map[string]interface{} `json:"deferredBuiltinTools,omitempty"`
+	SystemTools          []map[string]interface{} `json:"systemTools,omitempty"`
+	SystemPromptSections []map[string]interface{} `json:"systemPromptSections,omitempty"`
+	SlashCommands        map[string]interface{}   `json:"slashCommands,omitempty"`
+	Skills               map[string]interface{}   `json:"skills,omitempty"`
+	MessageBreakdown     map[string]interface{}   `json:"messageBreakdown,omitempty"`
+	APIUsage             *map[string]interface{}  `json:"apiUsage,omitempty"`
+}
+
+// ============================================================================
+// Session Mutation Types
+// ============================================================================
+
+// ForkSessionResult represents the result of a fork operation.
+type ForkSessionResult struct {
+	// SessionID is the UUID of the new forked session.
+	SessionID string `json:"session_id"`
 }

@@ -302,10 +302,20 @@ func (t *SubprocessCLITransport) buildCommand() []string {
 		switch v := t.options.SystemPrompt.(type) {
 		case string:
 			cmd = append(cmd, "--system-prompt", v)
+		case types.SystemPromptPreset:
+			if v.Append != nil && *v.Append != "" {
+				cmd = append(cmd, "--append-system-prompt", *v.Append)
+			}
+		case types.SystemPromptFile:
+			cmd = append(cmd, "--system-prompt-file", v.Path)
 		case map[string]interface{}:
 			if preset, ok := v["type"].(string); ok && preset == "preset" {
 				if appendStr, ok := v["append"].(string); ok && appendStr != "" {
 					cmd = append(cmd, "--append-system-prompt", appendStr)
+				}
+			} else if file, ok := v["type"].(string); ok && file == "file" {
+				if path, ok := v["path"].(string); ok && path != "" {
+					cmd = append(cmd, "--system-prompt-file", path)
 				}
 			}
 		}
@@ -340,6 +350,10 @@ func (t *SubprocessCLITransport) buildCommand() []string {
 
 	if len(t.options.DisallowedTools) > 0 {
 		cmd = append(cmd, "--disallowedTools", strings.Join(t.options.DisallowedTools, ","))
+	}
+
+	if t.options.TaskBudget != nil {
+		cmd = append(cmd, "--task-budget", fmt.Sprintf("%d", t.options.TaskBudget.Total))
 	}
 
 	if t.options.Model != nil {

@@ -2129,7 +2129,7 @@ func TestToolPermissionCallbackMissing(t *testing.T) {
 
 // TestFirstResultEventSetOnEarlyExit tests that firstResultEvent is set when
 // readMessages exits early (e.g., due to context cancellation), matching
-// Python SDK's finally block behavior.
+// upstream SDK's finally block behavior.
 func TestFirstResultEventSetOnEarlyExit(t *testing.T) {
 	mockTransport := newMockTransport()
 

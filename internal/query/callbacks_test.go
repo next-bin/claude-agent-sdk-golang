@@ -265,7 +265,7 @@ func TestAsyncHookOutput(t *testing.T) {
 }
 
 func TestFieldNameConversion(t *testing.T) {
-	// Test that Python-safe field names (async_, continue_) are converted to CLI format
+	// Test that upstream-safe field names (async_, continue_) are converted to CLI format
 	continueVal := false
 	output := &types.SyncHookJSONOutput{
 		Continue_: &continueVal,

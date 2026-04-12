@@ -58,7 +58,7 @@ func TestMCPControlWithSDKMCPReal(t *testing.T) {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	// Create message channel once and reuse for all queries (Python SDK pattern)
+	// Create message channel once and reuse for all queries (upstream SDK pattern)
 	msgChan := client.ReceiveMessages(bgCtx)
 
 	// Step 1: Use the SDK MCP tool (with its own timeout context)

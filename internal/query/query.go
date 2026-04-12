@@ -461,7 +461,7 @@ func (q *Query) handleHookCallbackRequest(ctx context.Context, requestID string,
 		return nil, err
 	}
 
-	// Convert Python-safe field names (async_, continue_) to CLI-expected names (async, continue)
+	// Convert upstream-safe field names (async_, continue_) to CLI-expected names (async, continue)
 	return convertHookOutputForCLI(hookOutput), nil
 }
 
@@ -625,6 +625,24 @@ func (q *Query) sendControlRequest(ctx context.Context, request map[string]inter
 // GetMCPStatus gets current MCP server connection status.
 func (q *Query) GetMCPStatus(ctx context.Context) (map[string]interface{}, error) {
 	return q.sendControlRequest(ctx, map[string]interface{}{"subtype": "mcp_status"}, 60*time.Second)
+}
+
+// GetContextUsage gets a breakdown of current context window usage by category.
+func (q *Query) GetContextUsage(ctx context.Context) (types.ContextUsageResponse, error) {
+	result, err := q.sendControlRequest(ctx, map[string]interface{}{"subtype": "get_context_usage"}, 60*time.Second)
+	if err != nil {
+		return types.ContextUsageResponse{}, err
+	}
+
+	var resp types.ContextUsageResponse
+	data, err := json.Marshal(result)
+	if err != nil {
+		return types.ContextUsageResponse{}, fmt.Errorf("failed to marshal context usage: %w", err)
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return types.ContextUsageResponse{}, fmt.Errorf("failed to unmarshal context usage: %w", err)
+	}
+	return resp, nil
 }
 
 // Interrupt sends an interrupt control request.

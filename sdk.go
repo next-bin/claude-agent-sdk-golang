@@ -148,6 +148,17 @@ type (
 	// Session types (v0.1.46)
 	SDKSessionInfo = types.SDKSessionInfo
 	SessionMessage = types.SessionMessage
+
+	// Context usage types (v0.1.50)
+	ContextUsageCategory = types.ContextUsageCategory
+	ContextUsageResponse = types.ContextUsageResponse
+
+	// Session mutation types (v0.1.50)
+	// ForkSessionResult is aliased below in the Session Mutations section
+
+	// Configuration types
+	SystemPromptFile = types.SystemPromptFile
+	TaskBudget       = types.TaskBudget
 )
 
 // Client is an alias for the client type.
@@ -265,4 +276,42 @@ func RenameSession(sessionID, title, directory string) error {
 //	err := claude.TagSession("550e8400-e29b-41d4-a716-446655440000", "experiment", "/path/to/project")
 func TagSession(sessionID, tag, directory string) error {
 	return sessions.TagSession(sessionID, tag, directory)
+}
+
+// ============================================================================
+// Session Delete & Fork API (v0.1.50+)
+// ============================================================================
+
+// DeleteSession deletes a session file from the project directory.
+//
+// Example:
+//
+//	err := claude.DeleteSession("550e8400-e29b-41d4-a716-446655440000", "/path/to/project")
+func DeleteSession(sessionID, directory string) error {
+	return sessions.DeleteSession(sessionID, directory)
+}
+
+// ForkSessionResult represents the result of a fork_session operation.
+type ForkSessionResult = sessions.ForkSessionResult
+
+// ForkSession creates a fork (copy) of a session with remapped UUIDs.
+//
+// The fork preserves the conversation structure but assigns new UUIDs to all messages.
+// Use upToMessageID to slice the fork at a specific message (inclusive).
+// Use title to set a custom title; default is original title + " (fork)".
+//
+// Example:
+//
+//	// Simple fork
+//	result, err := claude.ForkSession("550e8400-e29b-41d4-a716-446655440000", "/path/to/project", nil, nil)
+//
+//	// Fork with custom title
+//	title := "My Forked Session"
+//	result, err := claude.ForkSession(sessionID, directory, nil, &title)
+//
+//	// Fork up to a specific message
+//	msgID := "previous-message-uuid"
+//	result, err := claude.ForkSession(sessionID, directory, &msgID, nil)
+func ForkSession(sessionID, directory string, upToMessageID *string, title *string) (*ForkSessionResult, error) {
+	return sessions.ForkSession(sessionID, directory, upToMessageID, title)
 }
