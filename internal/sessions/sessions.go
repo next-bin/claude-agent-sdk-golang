@@ -11,6 +11,7 @@ package sessions
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1814,13 +1815,12 @@ func findSessionFilePath(sessionID, directory string) (string, error) {
 	return "", fmt.Errorf("session %s not found", sessionID)
 }
 
-// generateUUID generates a new UUID string.
+// generateUUID generates a new UUID string using crypto/rand.
 func generateUUID() string {
 	b := make([]byte, 16)
-	// Use timestamp-based pseudo-random for simplicity
-	now := time.Now().UnixNano()
-	for i := 0; i < 16; i++ {
-		b[i] = byte(now >> (i * 8))
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based if crypto/rand fails (extremely unlikely)
+		return time.Now().Format("20060102-150405-000000000000000000000000")[:36]
 	}
 	// Set version 4 and variant bits
 	b[6] = (b[6] & 0x0f) | 0x40 // version 4

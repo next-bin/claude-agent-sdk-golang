@@ -1,16 +1,60 @@
 // Package claude provides the Claude Agent SDK for Go.
 //
-// This SDK enables building AI agents with Claude. It provides both
-// one-shot query functionality and interactive session management.
+// This SDK enables building AI agents with Claude Code. It provides both
+// one-shot query functionality and interactive session management with
+// support for tools, hooks, MCP servers, and session management.
 //
-// For simple queries, use the Query function:
+// # Quick Start
 //
-//	result, err := claude.Query(ctx, "Hello, Claude!", nil)
+// For simple one-shot queries, use the Query function:
 //
-// For more control, create a client:
+//	msgChan, err := claude.Query(ctx, "What is 2+2?", nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	for msg := range msgChan {
+//	    fmt.Printf("%v\n", msg)
+//	}
 //
-//	client := client.New()
-//	result, err := client.Query(ctx, "Hello, Claude!")
+// # Interactive Sessions
+//
+// For bidirectional, interactive conversations, create a Client:
+//
+//	c := client.NewWithOptions(&types.ClaudeAgentOptions{
+//	    SystemPrompt: types.String("You are a helpful assistant"),
+//	})
+//	defer c.Close()
+//
+//	err := c.Connect(ctx, "Hello, Claude!")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	for msg := range c.ReceiveResponse(ctx) {
+//	    fmt.Printf("%T: %v\n", msg, msg)
+//	}
+//
+// # Configuration
+//
+// Use ClaudeAgentOptions to configure behavior:
+//
+//	opts := &types.ClaudeAgentOptions{
+//	    SystemPrompt:   types.String("You are a helpful assistant"),
+//	    MaxTurns:       types.Int(5),
+//	    AllowedTools:   []string{"Read", "Write", "Bash"},
+//	    PermissionMode: types.PermissionModePtr(types.PermissionModeAcceptEdits),
+//	}
+//
+// See types.ClaudeAgentOptions for all available options.
+//
+// # Sessions API
+//
+// Manage conversation sessions:
+//
+//	sessions, err := claude.ListSessions("/path/to/project", 10, true)
+//	messages, err := claude.GetSessionMessages(sessionID, "", 0, 0)
+//	err = claude.RenameSession(sessionID, "New Title", "")
+//	err = claude.ForkSession(sessionID, "", nil, nil)
 //
 // See the examples directory for more usage examples.
 package claude
@@ -29,6 +73,17 @@ import (
 //
 // This is the simplest way to interact with Claude. Pass a prompt and
 // optional configuration, and receive messages through a channel.
+// The channel is automatically closed when the query completes.
+//
+// For interactive conversations with follow-up messages, dynamic control,
+// or custom tools/hooks, use client.Client instead.
+//
+// Parameters:
+//   - ctx: context for cancellation
+//   - prompt: the user prompt to send
+//   - opts: optional configuration (nil for defaults)
+//
+// Returns a channel of Message types and an error if the query fails to start.
 //
 // Example:
 //
@@ -39,6 +94,14 @@ import (
 //	for msg := range msgChan {
 //	    fmt.Printf("%v\n", msg)
 //	}
+//
+// With options:
+//
+//	opts := &types.ClaudeAgentOptions{
+//	    SystemPrompt: types.String("You are a helpful assistant"),
+//	    MaxTurns:     types.Int(1),
+//	}
+//	msgChan, err := claude.Query(ctx, "Tell me a joke", opts)
 func Query(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions) (<-chan types.Message, error) {
 	return query.Query(ctx, prompt, opts)
 }
