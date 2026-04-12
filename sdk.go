@@ -144,6 +144,9 @@ func NewClientWithOptions(opts *types.Options) *client.Client {
 	return client.NewWithOptions(opts)
 }
 
+// CLIVersion is the bundled Claude Code CLI version.
+const CLIVersion = "2.1.104"
+
 // Re-export types for convenience.
 type (
 	// Options represents configuration options for the SDK.
