@@ -18,15 +18,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/client"
-	_ "github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/client"
+	_ "github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -499,29 +497,6 @@ func createClientWithComprehensiveHandler() *client.Client {
 			}, nil
 		},
 	})
-}
-
-// runExampleQuery demonstrates how to run a query with permission handling.
-func runExampleQuery(ctx context.Context, c *client.Client) {
-	// Connect to Claude
-	if err := c.Connect(ctx); err != nil {
-		log.Printf("Failed to connect: %v", err)
-		return
-	}
-
-	// Create message channel once and reuse for all queries
-	msgChan := c.ReceiveMessages(ctx)
-
-	// Send a query that will trigger tool permission checks
-	if err := c.Query(ctx, "List the files in the current directory using Bash"); err != nil {
-		log.Printf("Query failed: %v", err)
-		return
-	}
-
-	// Process messages
-	for msg := range msgChan {
-		fmt.Printf("Message: %v\n", msg)
-	}
 }
 
 // Helper functions

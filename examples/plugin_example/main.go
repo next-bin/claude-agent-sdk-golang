@@ -21,9 +21,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -246,48 +246,4 @@ that this message came from a custom plugin loaded via the SDK.`)
 	fmt.Println("  skills/         - Custom skills (.md files)")
 	fmt.Println("  hooks/          - Hook scripts")
 	fmt.Println()
-}
-
-// runQueryWithPlugin demonstrates running a query with plugin verification.
-// This function is provided as reference for actual usage.
-func runQueryWithPlugin(ctx context.Context, client *claude.Client) {
-	fmt.Println("Running query to verify plugin loading...")
-
-	// Create message channel once and reuse for all queries
-	msgChan := client.ReceiveMessages(ctx)
-
-	if err := client.Query(ctx, "Hello!"); err != nil {
-		log.Printf("Query failed: %v", err)
-		return
-	}
-
-	for msg := range msgChan {
-		switch m := msg.(type) {
-		case *types.SystemMessage:
-			if m.Subtype == "init" {
-				fmt.Println("System initialized!")
-				if plugins, ok := m.Data["plugins"].([]interface{}); ok {
-					fmt.Printf("Plugins loaded: %d\n", len(plugins))
-					for _, p := range plugins {
-						if plugin, ok := p.(map[string]interface{}); ok {
-							if name, ok := plugin["name"].(string); ok {
-								fmt.Printf("  - %s\n", name)
-							}
-						}
-					}
-				}
-			}
-		case *types.AssistantMessage:
-			for _, block := range m.Content {
-				if text, ok := block.(types.TextBlock); ok {
-					fmt.Printf("Claude: %s\n", text.Text)
-				}
-			}
-		case *types.ResultMessage:
-			fmt.Println("Query completed!")
-			if m.TotalCostUSD != nil {
-				fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
-			}
-		}
-	}
 }

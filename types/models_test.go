@@ -4,7 +4,7 @@ package types_test
 import (
 	"testing"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func TestModelConstants(t *testing.T) {

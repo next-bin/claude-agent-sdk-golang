@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // mockTransport implements the Transport interface for testing.

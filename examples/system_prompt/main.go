@@ -17,11 +17,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -216,79 +215,4 @@ TESTING FOCUS:
 	defer testingClient.Close()
 
 	fmt.Println("Testing-focused client configured with preset + testing guidelines")
-}
-
-// runQuery demonstrates how to execute a query with the configured client.
-// This helper function shows the pattern for running queries.
-func runQuery(ctx context.Context, client interface {
-	Connect(context.Context) error
-	ReceiveMessages(context.Context) <-chan types.Message
-	Query(context.Context, interface{}, ...string) error
-	Close() error
-}, prompt string) {
-	// Connect to Claude
-	if err := client.Connect(ctx); err != nil {
-		log.Printf("Failed to connect: %v", err)
-		return
-	}
-
-	// Create message channel once and reuse for all queries
-	msgChan := client.ReceiveMessages(ctx)
-
-	if err := client.Query(ctx, prompt); err != nil {
-		log.Printf("Query failed: %v", err)
-		return
-	}
-
-	// Process messages from the channel
-	for msg := range msgChan {
-		switch m := msg.(type) {
-		case *types.AssistantMessage:
-			for _, block := range m.Content {
-				if textBlock, ok := block.(types.TextBlock); ok {
-					fmt.Printf("Assistant: %s\n", textBlock.Text)
-				}
-			}
-		case *types.ResultMessage:
-			if m.Result != nil {
-				fmt.Printf("Result: %s\n", *m.Result)
-			}
-			if m.TotalCostUSD != nil {
-				fmt.Printf("Session: %s, Cost: $%.4f\n", m.SessionID, *m.TotalCostUSD)
-			} else {
-				fmt.Printf("Session: %s\n", m.SessionID)
-			}
-		}
-	}
-}
-
-// combinedOptionsExample demonstrates combining system prompt with other options.
-// This shows how to use system prompts alongside other configuration options.
-func combinedOptionsExample(ctx context.Context) {
-	appendText := `
-Always provide:
-1. A brief explanation of your approach
-2. The solution/implementation
-3. Testing suggestions
-4. Potential improvements`
-
-	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model: types.String(types.ModelSonnet),
-		SystemPrompt: types.SystemPromptPreset{
-			Type:   "preset",
-			Preset: "claude_code",
-			Append: &appendText,
-		},
-		// Combine with other options
-		PermissionMode: (*types.PermissionMode)(types.String("default")),
-		MaxTurns:       types.Int(5),
-	})
-	defer client.Close()
-
-	// The client now has:
-	// - Custom system prompt extending the Claude Code preset
-	// - Default permission mode
-	// - Maximum 5 conversation turns
-	_ = ctx
-	fmt.Println("Client configured with combined options")
 }

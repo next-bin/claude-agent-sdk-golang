@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/client"
-	"github.com/unitsvc/claude-agent-sdk-golang/errors"
-	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/client"
+	"github.com/next-bin/claude-agent-sdk-golang/errors"
+	"github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // displayMessage prints a standardized representation of messages.
@@ -304,7 +304,6 @@ func exampleManualMessageHandling(ctx context.Context) error {
 		case *types.ResultMessage:
 			displayMessage(msg)
 			fmt.Printf("Total languages mentioned: %d\n", len(languagesFound))
-			break
 		}
 	}
 
@@ -361,7 +360,6 @@ func exampleWithOptions(ctx context.Context) error {
 			}
 		case *types.ResultMessage:
 			displayMessage(msg)
-			break
 		}
 	}
 
@@ -440,7 +438,6 @@ func exampleBashCommand(ctx context.Context) error {
 			if m.TotalCostUSD != nil {
 				fmt.Printf("Cost: $%.4f\n", *m.TotalCostUSD)
 			}
-			break
 		}
 	}
 
@@ -724,8 +721,6 @@ func exampleMessageTypes(ctx context.Context) error {
 			if m.Result != nil {
 				fmt.Printf("  Result: %s\n", *m.Result)
 			}
-			// Break after result message
-			break
 
 		case *types.StreamEvent:
 			fmt.Printf("[StreamEvent] Session: %s, UUID: %s\n", m.SessionID, m.UUID)

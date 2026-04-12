@@ -12,13 +12,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"log"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	_ "github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	_ "github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // ============================================================================
@@ -472,32 +470,4 @@ func createClientWithAsyncHooks() interface{ Close() error } {
 // float64Ptr returns a pointer to a float64.
 func float64Ptr(f float64) *float64 {
 	return &f
-}
-
-// runExampleQuery demonstrates how to run a query with hooks enabled.
-func runExampleQuery(ctx context.Context, client interface {
-	Connect(context.Context) error
-	ReceiveMessages(context.Context) <-chan types.Message
-	Query(context.Context, interface{}, ...string) error
-	Close() error
-}) {
-	// Connect to Claude
-	if err := client.Connect(ctx); err != nil {
-		log.Printf("Failed to connect: %v", err)
-		return
-	}
-
-	// Create message channel once and reuse for all queries
-	msgChan := client.ReceiveMessages(ctx)
-
-	// Send a query
-	if err := client.Query(ctx, "List the files in the current directory using Bash"); err != nil {
-		log.Printf("Query failed: %v", err)
-		return
-	}
-
-	// Process messages
-	for msg := range msgChan {
-		fmt.Printf("Message: %v\n", msg)
-	}
 }

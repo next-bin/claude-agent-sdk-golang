@@ -1,7 +1,7 @@
 # Claude Agent SDK for Go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/unitsvc/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/unitsvc/claude-agent-sdk-golang)
-[![Go Report Card](https://goreportcard.com/badge/github.com/unitsvc/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/unitsvc/claude-agent-sdk-golang)
+[![Go Reference](https://pkg.go.dev/badge/github.com/next-bin/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/next-bin/claude-agent-sdk-golang)
+[![Go Report Card](https://goreportcard.com/badge/github.com/next-bin/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/next-bin/claude-agent-sdk-golang)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [中文文档](README-zh.md)
@@ -31,18 +31,18 @@ A Go SDK for building AI agents with Claude. This SDK provides a Go implementati
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔄 **Full API Compatibility** | Compatible with Python SDK v0.1.50 |
-| 📡 **Streaming Messages** | Real-time message streaming via Go channels |
-| 🔌 **MCP Server Support** | Stdio, SSE, HTTP, and in-process SDK MCP servers |
-| 🪝 **Hook System** | 12 hook events for tool lifecycle management |
-| 🔐 **Permission Control** | Fine-grained tool permission callbacks |
-| 💾 **Sessions API** | List, query, rename, and tag conversation sessions |
-| 🎯 **Type Safety** | Compile-time type checking with Go generics |
-| ⚡ **Concurrency** | Native goroutine + channel patterns |
-| 📊 **Cost Tracking** | Built-in usage and cost tracking |
-| 🛠️ **Custom Tools** | Define custom tools with JSON Schema validation |
+| Feature                       | Description                                        |
+| ----------------------------- | -------------------------------------------------- |
+| 🔄 **Full API Compatibility** | Compatible with Python SDK v0.1.50                 |
+| 📡 **Streaming Messages**     | Real-time message streaming via Go channels        |
+| 🔌 **MCP Server Support**     | Stdio, SSE, HTTP, and in-process SDK MCP servers   |
+| 🪝 **Hook System**            | 12 hook events for tool lifecycle management       |
+| 🔐 **Permission Control**     | Fine-grained tool permission callbacks             |
+| 💾 **Sessions API**           | List, query, rename, and tag conversation sessions |
+| 🎯 **Type Safety**            | Compile-time type checking with Go generics        |
+| ⚡ **Concurrency**            | Native goroutine + channel patterns                |
+| 📊 **Cost Tracking**          | Built-in usage and cost tracking                   |
+| 🛠️ **Custom Tools**           | Define custom tools with JSON Schema validation    |
 
 ## Prerequisites
 
@@ -70,20 +70,20 @@ claude --version
 ## Installation
 
 ```bash
-go get github.com/unitsvc/claude-agent-sdk-golang
+go get github.com/next-bin/claude-agent-sdk-golang
 ```
 
 ### Go Modules
 
 ```go
-import claude "github.com/unitsvc/claude-agent-sdk-golang"
+import claude "github.com/next-bin/claude-agent-sdk-golang"
 ```
 
 ### Version Pinning
 
 ```go
 // go.mod
-require github.com/unitsvc/claude-agent-sdk-golang v0.1.50
+require github.com/next-bin/claude-agent-sdk-golang v0.1.50
 ```
 
 ## Quick Start
@@ -100,8 +100,8 @@ import (
     "fmt"
     "log"
 
-    claude "github.com/unitsvc/claude-agent-sdk-golang"
-    "github.com/unitsvc/claude-agent-sdk-golang/types"
+    claude "github.com/next-bin/claude-agent-sdk-golang"
+    "github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -150,8 +150,8 @@ import (
     "os/signal"
     "syscall"
 
-    claude "github.com/unitsvc/claude-agent-sdk-golang"
-    "github.com/unitsvc/claude-agent-sdk-golang/types"
+    claude "github.com/next-bin/claude-agent-sdk-golang"
+    "github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -227,15 +227,15 @@ func main() {
 
 ### Key Components
 
-| Component | Description |
-|-----------|-------------|
-| **Query()** | Simple one-shot query function |
-| **Client** | Full-featured client for interactive sessions |
-| **Message Parser** | Parses JSONL messages from Claude CLI |
-| **Hook System** | Event-driven callbacks for tool lifecycle |
-| **Permission Manager** | Controls tool execution permissions |
-| **Transport Layer** | Handles subprocess communication with Claude CLI |
-| **Sessions API** | Manages conversation history |
+| Component              | Description                                      |
+| ---------------------- | ------------------------------------------------ |
+| **Query()**            | Simple one-shot query function                   |
+| **Client**             | Full-featured client for interactive sessions    |
+| **Message Parser**     | Parses JSONL messages from Claude CLI            |
+| **Hook System**        | Event-driven callbacks for tool lifecycle        |
+| **Permission Manager** | Controls tool execution permissions              |
+| **Transport Layer**    | Handles subprocess communication with Claude CLI |
+| **Sessions API**       | Manages conversation history                     |
 
 ### Project Structure
 
@@ -394,7 +394,7 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 Create custom tools without external processes:
 
 ```go
-import "github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
+import "github.com/next-bin/claude-agent-sdk-golang/sdkmcp"
 
 // Define a calculator tool
 calculator := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{
@@ -475,20 +475,20 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 #### Hook Events
 
-| Event | When Fired | Input Type |
-|-------|------------|------------|
-| `HookEventPreToolUse` | Before tool execution | `PreToolUseHookInput` |
-| `HookEventPostToolUse` | After successful tool execution | `PostToolUseHookInput` |
-| `HookEventPostToolUseFailure` | After failed tool execution | `PostToolUseFailureHookInput` |
-| `HookEventUserPromptSubmit` | When user submits a prompt | `UserPromptSubmitHookInput` |
-| `HookEventStop` | When conversation stops | `StopHookInput` |
-| `HookEventSubagentStart` | When subagent starts | `SubagentStartHookInput` |
-| `HookEventSubagentStop` | When subagent stops | `SubagentStopHookInput` |
-| `HookEventPreCompact` | Before context compaction | `PreCompactHookInput` |
-| `HookEventNotification` | For notifications | `NotificationHookInput` |
-| `HookEventPermissionRequest` | For permission requests | `PermissionRequestHookInput` |
-| `HookEventSessionStart` | When session starts | `SessionStartHookInput` |
-| `HookEventSessionEnd` | When session ends | `SessionEndHookInput` |
+| Event                         | When Fired                      | Input Type                    |
+| ----------------------------- | ------------------------------- | ----------------------------- |
+| `HookEventPreToolUse`         | Before tool execution           | `PreToolUseHookInput`         |
+| `HookEventPostToolUse`        | After successful tool execution | `PostToolUseHookInput`        |
+| `HookEventPostToolUseFailure` | After failed tool execution     | `PostToolUseFailureHookInput` |
+| `HookEventUserPromptSubmit`   | When user submits a prompt      | `UserPromptSubmitHookInput`   |
+| `HookEventStop`               | When conversation stops         | `StopHookInput`               |
+| `HookEventSubagentStart`      | When subagent starts            | `SubagentStartHookInput`      |
+| `HookEventSubagentStop`       | When subagent stops             | `SubagentStopHookInput`       |
+| `HookEventPreCompact`         | Before context compaction       | `PreCompactHookInput`         |
+| `HookEventNotification`       | For notifications               | `NotificationHookInput`       |
+| `HookEventPermissionRequest`  | For permission requests         | `PermissionRequestHookInput`  |
+| `HookEventSessionStart`       | When session starts             | `SessionStartHookInput`       |
+| `HookEventSessionEnd`         | When session ends               | `SessionEndHookInput`         |
 
 ### Sessions API
 
@@ -551,12 +551,12 @@ err := claude.TagSession(
 
 ### Permission Modes
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| `PermissionModeDefault` | Prompts for permissions | Interactive applications |
-| `PermissionModeAcceptEdits` | Auto-accept file edits | Code editing tools |
-| `PermissionModePlan` | Planning mode | Complex multi-step tasks |
-| `PermissionModeBypassPermissions` | Bypass all permissions | Trusted environments only |
+| Mode                              | Description             | Use Case                  |
+| --------------------------------- | ----------------------- | ------------------------- |
+| `PermissionModeDefault`           | Prompts for permissions | Interactive applications  |
+| `PermissionModeAcceptEdits`       | Auto-accept file edits  | Code editing tools        |
+| `PermissionModePlan`              | Planning mode           | Complex multi-step tasks  |
+| `PermissionModeBypassPermissions` | Bypass all permissions  | Trusted environments only |
 
 ```go
 // Accept edits automatically
@@ -777,23 +777,23 @@ client.GetServerInfo() *ServerInfo
 
 ### Options Reference
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Model` | `*string` | `"sonnet"` | AI model: `"opus"`, `"sonnet"`, `"haiku"` |
-| `SystemPrompt` | `string` | `""` | Custom system prompt |
-| `CWD` | `*string` | current dir | Working directory |
-| `MaxTurns` | `*int` | unlimited | Maximum conversation turns |
-| `MaxBudgetUSD` | `*float64` | unlimited | Maximum budget in USD |
-| `PermissionMode` | `*PermissionMode` | `default` | Permission handling mode |
-| `CanUseTool` | `func` | `nil` | Tool permission callback |
-| `Hooks` | `map` | `nil` | Event hooks |
-| `MCPServers` | `map` | `nil` | MCP server configurations |
-| `AllowedTools` | `[]string` | all | Tools to allow |
-| `DisallowedTools` | `[]string` | none | Tools to disallow |
-| `IncludePartialMessages` | `*bool` | `false` | Enable partial streaming |
-| `Agents` | `[]AgentDefinition` | `nil` | Custom agent definitions |
-| `CLIPath` | `*string` | auto | Path to Claude CLI |
-| `Env` | `map[string]string` | `nil` | Additional environment variables |
+| Option                   | Type                | Default     | Description                               |
+| ------------------------ | ------------------- | ----------- | ----------------------------------------- |
+| `Model`                  | `*string`           | `"sonnet"`  | AI model: `"opus"`, `"sonnet"`, `"haiku"` |
+| `SystemPrompt`           | `string`            | `""`        | Custom system prompt                      |
+| `CWD`                    | `*string`           | current dir | Working directory                         |
+| `MaxTurns`               | `*int`              | unlimited   | Maximum conversation turns                |
+| `MaxBudgetUSD`           | `*float64`          | unlimited   | Maximum budget in USD                     |
+| `PermissionMode`         | `*PermissionMode`   | `default`   | Permission handling mode                  |
+| `CanUseTool`             | `func`              | `nil`       | Tool permission callback                  |
+| `Hooks`                  | `map`               | `nil`       | Event hooks                               |
+| `MCPServers`             | `map`               | `nil`       | MCP server configurations                 |
+| `AllowedTools`           | `[]string`          | all         | Tools to allow                            |
+| `DisallowedTools`        | `[]string`          | none        | Tools to disallow                         |
+| `IncludePartialMessages` | `*bool`             | `false`     | Enable partial streaming                  |
+| `Agents`                 | `[]AgentDefinition` | `nil`       | Custom agent definitions                  |
+| `CLIPath`                | `*string`           | auto        | Path to Claude CLI                        |
+| `Env`                    | `map[string]string` | `nil`       | Additional environment variables          |
 
 ### Helper Functions
 
@@ -819,24 +819,24 @@ sdkmcp.ArrayProperty(items)         // Array property
 
 ### Top-Level Messages
 
-| Type | Description | Key Fields |
-|------|-------------|------------|
-| `ResultMessage` | Final result | `Result`, `SessionID`, `TotalCostUSD`, `DurationMS`, `NumTurns`, `StopReason` |
-| `AssistantMessage` | Claude's response | `Content`, `Model`, `Usage` |
-| `UserMessage` | User input | `Content` |
-| `SystemMessage` | System events | `Subtype`, `Data` |
-| `StreamEvent` | Streaming event | `Type`, `Data` |
-| `RateLimitEvent` | Rate limit info | `Type`, `Data` |
+| Type               | Description       | Key Fields                                                                    |
+| ------------------ | ----------------- | ----------------------------------------------------------------------------- |
+| `ResultMessage`    | Final result      | `Result`, `SessionID`, `TotalCostUSD`, `DurationMS`, `NumTurns`, `StopReason` |
+| `AssistantMessage` | Claude's response | `Content`, `Model`, `Usage`                                                   |
+| `UserMessage`      | User input        | `Content`                                                                     |
+| `SystemMessage`    | System events     | `Subtype`, `Data`                                                             |
+| `StreamEvent`      | Streaming event   | `Type`, `Data`                                                                |
+| `RateLimitEvent`   | Rate limit info   | `Type`, `Data`                                                                |
 
 ### Content Blocks
 
-| Type | Description | Key Fields |
-|------|-------------|------------|
-| `TextBlock` | Text content | `Text` |
-| `ThinkingBlock` | Extended thinking | `Thinking` |
-| `ToolUseBlock` | Tool request | `ID`, `Name`, `Input` |
-| `ToolResultBlock` | Tool result | `ToolUseID`, `Content`, `IsError` |
-| `GenericContentBlock` | Unknown type | `Type`, `Raw` |
+| Type                  | Description       | Key Fields                        |
+| --------------------- | ----------------- | --------------------------------- |
+| `TextBlock`           | Text content      | `Text`                            |
+| `ThinkingBlock`       | Extended thinking | `Thinking`                        |
+| `ToolUseBlock`        | Tool request      | `ID`, `Name`, `Input`             |
+| `ToolResultBlock`     | Tool result       | `ToolUseID`, `Content`, `IsError` |
+| `GenericContentBlock` | Unknown type      | `Type`, `Raw`                     |
 
 ## Error Handling
 
@@ -845,8 +845,8 @@ import (
     "errors"
     "log"
 
-    claude "github.com/unitsvc/claude-agent-sdk-golang"
-    sdkerrors "github.com/unitsvc/claude-agent-sdk-golang/errors"
+    claude "github.com/next-bin/claude-agent-sdk-golang"
+    sdkerrors "github.com/next-bin/claude-agent-sdk-golang/errors"
 )
 
 msgChan, err := client.Query(ctx, "Hello")
@@ -890,28 +890,28 @@ if err != nil {
 
 The [examples](examples/) directory contains comprehensive examples:
 
-| Example | Description |
-|---------|-------------|
-| `quick_start` | Basic usage patterns |
-| `streaming_mode` | Message streaming techniques |
-| `streaming_interactive` | Interactive streaming with context |
-| `streaming_goroutines` | Concurrent streaming patterns |
-| `hooks` | Hook system with all events |
-| `tool_permission` | Permission callback examples |
-| `mcp_calculator` | MCP server integration |
-| `mcp_sdk_simple` | Simple in-process MCP server |
-| `mcp_sdk_server` | Full-featured SDK MCP server |
-| `mcp_control` | MCP server runtime control |
-| `agents` | Custom agent definitions |
-| `system_prompt` | System prompt configuration |
-| `setting_sources` | Settings and configuration |
-| `budget` | Budget management |
-| `include_partial_messages` | Partial message handling |
-| `stderr_callback` | Stderr output handling |
-| `tools_option` | Tool configuration |
-| `filesystem_agents` | File system operations |
-| `task_messages` | Task event handling |
-| `plugin_example` | Plugin integration |
+| Example                    | Description                        |
+| -------------------------- | ---------------------------------- |
+| `quick_start`              | Basic usage patterns               |
+| `streaming_mode`           | Message streaming techniques       |
+| `streaming_interactive`    | Interactive streaming with context |
+| `streaming_goroutines`     | Concurrent streaming patterns      |
+| `hooks`                    | Hook system with all events        |
+| `tool_permission`          | Permission callback examples       |
+| `mcp_calculator`           | MCP server integration             |
+| `mcp_sdk_simple`           | Simple in-process MCP server       |
+| `mcp_sdk_server`           | Full-featured SDK MCP server       |
+| `mcp_control`              | MCP server runtime control         |
+| `agents`                   | Custom agent definitions           |
+| `system_prompt`            | System prompt configuration        |
+| `setting_sources`          | Settings and configuration         |
+| `budget`                   | Budget management                  |
+| `include_partial_messages` | Partial message handling           |
+| `stderr_callback`          | Stderr output handling             |
+| `tools_option`             | Tool configuration                 |
+| `filesystem_agents`        | File system operations             |
+| `task_messages`            | Task event handling                |
+| `plugin_example`           | Plugin integration                 |
 
 ## Testing
 
@@ -1011,11 +1011,11 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `CLAUDE_CONFIG_DIR` | Custom config directory |
-| `CLAUDE_CODE_ENTRYPOINT` | Entry point identifier |
+| Variable                 | Description             |
+| ------------------------ | ----------------------- |
+| `ANTHROPIC_API_KEY`      | Anthropic API key       |
+| `CLAUDE_CONFIG_DIR`      | Custom config directory |
+| `CLAUDE_CODE_ENTRYPOINT` | Entry point identifier  |
 
 ## Best Practices
 
@@ -1218,13 +1218,13 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ### From Python SDK
 
-| Python | Go |
-|--------|-----|
-| `from claude_agent_sdk import Query` | `import claude "github.com/unitsvc/claude-agent-sdk-golang"` |
-| `async for msg in query(...)` | `for msg := range claude.Query(...)` |
-| `options=ClaudeAgentOptions(...)` | `&types.ClaudeAgentOptions{...}` |
-| `permission_result_allow()` | `types.PermissionResultAllow{Behavior: "allow"}` |
-| `@tool` decorator | `sdkmcp.Tool(...)` |
+| Python                               | Go                                                            |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `from claude_agent_sdk import Query` | `import claude "github.com/next-bin/claude-agent-sdk-golang"` |
+| `async for msg in query(...)`        | `for msg := range claude.Query(...)`                          |
+| `options=ClaudeAgentOptions(...)`    | `&types.ClaudeAgentOptions{...}`                              |
+| `permission_result_allow()`          | `types.PermissionResultAllow{Behavior: "allow"}`              |
+| `@tool` decorator                    | `sdkmcp.Tool(...)`                                            |
 
 ### Key Differences
 
@@ -1268,17 +1268,17 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 ## Go SDK Advantages
 
-| Feature | Python SDK | Go SDK |
-|---------|-----------|--------|
-| Hook Events | 10 | 12 (+SessionStart, SessionEnd) |
-| Unit Tests | 153 | 360+ |
-| E2E Tests | 32 | 55+ |
-| Schema Helpers | Limited | Full (Schema, SimpleSchema, Property helpers) |
-| Transport | Internal | Exported interface |
-| Rate Limit Events | No | Yes (RateLimitEvent) |
-| Generic Content Blocks | No | Yes (GenericContentBlock) |
-| Concurrent Safe | Partial | Yes (channel-based) |
-| Memory Footprint | Higher | Lower |
+| Feature                | Python SDK | Go SDK                                        |
+| ---------------------- | ---------- | --------------------------------------------- |
+| Hook Events            | 10         | 12 (+SessionStart, SessionEnd)                |
+| Unit Tests             | 153        | 360+                                          |
+| E2E Tests              | 32         | 55+                                           |
+| Schema Helpers         | Limited    | Full (Schema, SimpleSchema, Property helpers) |
+| Transport              | Internal   | Exported interface                            |
+| Rate Limit Events      | No         | Yes (RateLimitEvent)                          |
+| Generic Content Blocks | No         | Yes (GenericContentBlock)                     |
+| Concurrent Safe        | Partial    | Yes (channel-based)                           |
+| Memory Footprint       | Higher     | Lower                                         |
 
 ## Version
 
@@ -1303,7 +1303,7 @@ Contributions are welcome! Please:
 
 ```bash
 # Clone the repository
-git clone https://github.com/unitsvc/claude-agent-sdk-golang.git
+git clone https://github.com/next-bin/claude-agent-sdk-golang.git
 cd claude-agent-sdk-golang
 
 # Install dependencies

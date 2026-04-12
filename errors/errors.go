@@ -14,7 +14,7 @@ var (
 	ErrNoAPIKey = errors.New("no API key provided")
 
 	// ErrNotInstalled is returned when the Claude CLI is not installed.
-	ErrNotInstalled = errors.New("Claude CLI not installed")
+	ErrNotInstalled = errors.New("claude CLI not installed")
 
 	// ErrConnectionFailed is returned when connection to Claude CLI fails.
 	ErrConnectionFailed = errors.New("failed to connect to Claude CLI")

@@ -22,8 +22,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -314,51 +314,5 @@ func handleMessage(msg types.Message) {
 	case *types.StreamEvent:
 		// Stream events for partial messages during streaming
 		fmt.Printf("Stream Event: %+v\n", m.Event)
-	}
-}
-
-// Example: Running a query that invokes agents
-// This function demonstrates how the main agent delegates to subagents.
-func runAgentQueryExample() {
-	ctx := context.Background()
-
-	// Define agents for a code review workflow
-	options := &types.ClaudeAgentOptions{
-		Model: types.String(types.ModelSonnet),
-		Agents: map[string]types.AgentDefinition{
-			"code-reviewer": {
-				Description: "Reviews code for quality and issues",
-				Prompt:      "Review code thoroughly. Report issues with severity levels.",
-				Tools:       []string{"Read", "Grep"},
-				Model:       types.String("sonnet"),
-			},
-		},
-	}
-
-	client := claude.NewClientWithOptions(options)
-	defer client.Close()
-
-	// Connect to Claude
-	if err := client.Connect(ctx); err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-	}
-
-	// Query that triggers agent usage
-	// The main agent may invoke the code-reviewer agent using the Agent tool
-	query := `Please review the authentication module. Use the code-reviewer agent to analyze:
-1. Security vulnerabilities
-2. Code quality issues
-3. Potential improvements`
-
-	// Create message channel once and reuse for all queries
-	msgChan := client.ReceiveMessages(ctx)
-
-	if err := client.Query(ctx, query); err != nil {
-		log.Fatalf("Query failed: %v", err)
-	}
-
-	// Process the response stream
-	for msg := range msgChan {
-		handleMessage(msg)
 	}
 }

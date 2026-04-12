@@ -5,8 +5,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/internal/query"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/query"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // =============================================================================

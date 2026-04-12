@@ -5,8 +5,8 @@ package messageparser
 import (
 	"log/slog"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/errors"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/errors"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // ParseMessage parses a raw message dictionary from CLI output into a typed Message object.

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // ============================================================================
@@ -484,32 +484,6 @@ func drainUntilResult(ctx context.Context, msgChan <-chan types.Message) {
 			}
 			if _, isResult := msg.(*types.ResultMessage); isResult {
 				return
-			}
-		}
-	}
-}
-
-// queryAndDrainResult executes a query and waits for result.
-func queryAndDrainResult(ctx context.Context, t *testing.T, client *claude.Client, msgChan <-chan types.Message, prompt string) {
-	if err := client.Query(ctx, prompt); err != nil {
-		t.Fatalf("Failed to query: %v", err)
-	}
-
-	resultFound := false
-	for !resultFound {
-		select {
-		case <-ctx.Done():
-			t.Log("Context timeout")
-			resultFound = true
-		case msg, ok := <-msgChan:
-			if !ok {
-				t.Log("Channel closed")
-				resultFound = true
-				break
-			}
-			if _, isResult := msg.(*types.ResultMessage); isResult {
-				t.Logf("✅ Query completed: %s", prompt)
-				resultFound = true
 			}
 		}
 	}

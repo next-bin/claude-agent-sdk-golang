@@ -7,8 +7,8 @@ package query
 import (
 	"context"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/client"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/client"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // Query sends a one-shot query to Claude and returns messages through a channel.

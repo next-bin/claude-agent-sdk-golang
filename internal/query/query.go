@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // Transport defines the interface for bidirectional communication with Claude CLI.
@@ -77,7 +77,6 @@ type Query struct {
 	pendingControlResults   map[string]interface{}
 	hookCallbacks           map[string]HookCallbackFunc
 	nextCallbackID          int
-	requestCounter          int
 	mu                      sync.Mutex
 
 	// Message stream
@@ -123,8 +122,8 @@ func NewQuery(
 	// Get stream close timeout from environment or use default
 	streamCloseTimeout := 60 * time.Second
 	if timeoutStr := os.Getenv("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"); timeoutStr != "" {
-		if timeoutMs, err := parseDuration(timeoutStr); err == nil {
-			streamCloseTimeout = timeoutMs
+		if timeout, err := parseDuration(timeoutStr); err == nil {
+			streamCloseTimeout = timeout
 		}
 	}
 
@@ -489,7 +488,7 @@ func (q *Query) handleMCPMessageRequest(ctx context.Context, requestID string, r
 func (q *Query) handleSDKMCPRequest(ctx context.Context, serverName string, message map[string]interface{}) (map[string]interface{}, error) {
 	server, exists := q.sdkMcpServers[serverName]
 	if !exists {
-		msgID, _ := message["id"]
+		msgID := message["id"]
 		return map[string]interface{}{
 			"jsonrpc": "2.0",
 			"id":      msgID,
@@ -726,7 +725,7 @@ func (q *Query) StreamInput(ctx context.Context, stream <-chan map[string]interf
 func (q *Query) finishInputStream(ctx context.Context) error {
 	// If we have SDK MCP servers or hooks that need bidirectional communication,
 	// wait for first result before closing the channel
-	hasHooks := q.hooks != nil && len(q.hooks) > 0
+	hasHooks := len(q.hooks) > 0
 	if len(q.sdkMcpServers) > 0 || hasHooks {
 		select {
 		case <-q.firstResultEvent:

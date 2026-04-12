@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // ============================================================================
@@ -205,7 +205,7 @@ func TestStructuredOutputWithEnum(t *testing.T) {
 	msgChan := client.ReceiveMessages(bgCtx)
 
 	logger.Step("Sending query about test framework")
-	if err := client.Query(ctx, "Check if there are test files in the e2e-tests/ directory and identify the test framework."); err != nil {
+	if err := client.Query(ctx, "Check if there are test files in the e2e/ directory and identify the test framework."); err != nil {
 		t.Fatalf("Failed to query: %v", err)
 	}
 

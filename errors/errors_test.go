@@ -17,7 +17,7 @@ func TestSentinelErrors(t *testing.T) {
 		want string
 	}{
 		{"ErrNoAPIKey", ErrNoAPIKey, "no API key provided"},
-		{"ErrNotInstalled", ErrNotInstalled, "Claude CLI not installed"},
+		{"ErrNotInstalled", ErrNotInstalled, "claude CLI not installed"},
 		{"ErrConnectionFailed", ErrConnectionFailed, "failed to connect to Claude CLI"},
 		{"ErrTimeout", ErrTimeout, "operation timed out"},
 		{"ErrInterrupted", ErrInterrupted, "operation interrupted"},

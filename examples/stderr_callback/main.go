@@ -22,9 +22,9 @@ import (
 	"strings"
 	"sync"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // StderrLogger is a thread-safe stderr logger.
@@ -248,93 +248,5 @@ func realtimeStderrExample(ctx context.Context) {
 
 	fmt.Println("Real-time stderr display configured.")
 	fmt.Println("Each line will be prefixed with a timestamp.")
-	fmt.Println()
-}
-
-// Example: Combined stderr handler with multiple features
-// This demonstrates a more sophisticated stderr handling approach.
-func combinedStderrHandler(ctx context.Context) {
-	fmt.Println("--- Bonus: Combined Stderr Handler ---")
-
-	// Create a combined handler
-	type LogLevel string
-	const (
-		LogLevelDebug   LogLevel = "DEBUG"
-		LogLevelInfo    LogLevel = "INFO"
-		LogLevelWarning LogLevel = "WARN"
-		LogLevelError   LogLevel = "ERROR"
-	)
-
-	// Thread-safe combined handler
-	handler := struct {
-		logFile *os.File
-		enabled bool
-	}{
-		enabled: true,
-	}
-
-	// Create log file
-	logFile, err := os.CreateTemp("", "claude-combined-*.log")
-	if err != nil {
-		log.Printf("Failed to create log file: %v", err)
-		return
-	}
-	handler.logFile = logFile
-
-	combinedCallback := func(line string) {
-		if !handler.enabled || line == "" {
-			return
-		}
-
-		// Determine log level
-		var level LogLevel = LogLevelInfo
-		lowerLine := strings.ToLower(line)
-		switch {
-		case strings.Contains(lowerLine, "error"):
-			level = LogLevelError
-		case strings.Contains(lowerLine, "warning"):
-			level = LogLevelWarning
-		case strings.Contains(lowerLine, "debug"):
-			level = LogLevelDebug
-		}
-
-		// Format the log entry
-		formatted := fmt.Sprintf("[%s] %s\n", level, line)
-
-		// Write to file
-		handler.logFile.WriteString(formatted)
-
-		// Print to console based on level
-		switch level {
-		case LogLevelError:
-			fmt.Printf("\033[31m%s\033[0m", formatted) // Red
-		case LogLevelWarning:
-			fmt.Printf("\033[33m%s\033[0m", formatted) // Yellow
-		case LogLevelDebug:
-			// Skip debug output on console
-		default:
-			fmt.Print(formatted)
-		}
-	}
-
-	// Configure the client
-	client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
-		Model:  types.String(types.ModelSonnet),
-		Stderr: combinedCallback,
-	})
-	defer client.Close()
-	defer handler.logFile.Close()
-
-	if err := client.Connect(ctx); err != nil {
-		log.Printf("Failed to connect: %v", err)
-		return
-	}
-
-	fmt.Println("Combined handler configured:")
-	fmt.Println("  - Logs everything to file")
-	fmt.Println("  - Errors displayed in red")
-	fmt.Println("  - Warnings displayed in yellow")
-	fmt.Println("  - Debug output suppressed on console")
-	fmt.Printf("  - Log file: %s\n", handler.logFile.Name())
 	fmt.Println()
 }

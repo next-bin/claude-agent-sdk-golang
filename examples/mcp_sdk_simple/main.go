@@ -21,9 +21,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/sdkmcp"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {

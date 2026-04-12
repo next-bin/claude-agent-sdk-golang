@@ -22,9 +22,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/client"
-	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/client"
+	"github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {

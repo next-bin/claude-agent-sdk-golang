@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/sdkmcp"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // TestSdkMcpToolActualExecution tests that SDK MCP tools are actually executed.

@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/errors"
-	"github.com/unitsvc/claude-agent-sdk-golang/internal/messageparser"
-	"github.com/unitsvc/claude-agent-sdk-golang/internal/query"
-	"github.com/unitsvc/claude-agent-sdk-golang/internal/transport"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/errors"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/messageparser"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/query"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/transport"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // Client represents a Claude SDK client for bidirectional, interactive conversations.

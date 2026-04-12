@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"log"
 
-	claude "github.com/unitsvc/claude-agent-sdk-golang"
-	"github.com/unitsvc/claude-agent-sdk-golang/examples/internal"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	claude "github.com/next-bin/claude-agent-sdk-golang"
+	"github.com/next-bin/claude-agent-sdk-golang/examples/internal"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -187,42 +187,4 @@ Work carefully and always back up before major changes.`,
 	fmt.Println("  - Sandbox: enabled for safer operations")
 	fmt.Println("(Connect to use this agent)")
 	fmt.Println()
-}
-
-// runQuery is a helper function that executes a query and prints results.
-// This is included for reference but requires the Claude CLI to be installed.
-func runQuery(ctx context.Context, prompt string, opts *types.ClaudeAgentOptions) {
-	client := claude.NewClientWithOptions(opts)
-	defer client.Close()
-
-	if err := client.Connect(ctx); err != nil {
-		log.Printf("Failed to connect: %v", err)
-		return
-	}
-
-	// Create message channel once and reuse for all queries
-	msgChan := client.ReceiveMessages(ctx)
-
-	if err := client.Query(ctx, prompt); err != nil {
-		log.Printf("Query failed: %v", err)
-		return
-	}
-
-	for msg := range msgChan {
-		switch m := msg.(type) {
-		case *types.AssistantMessage:
-			for _, block := range m.Content {
-				if textBlock, ok := block.(types.TextBlock); ok {
-					fmt.Printf("Assistant: %s\n", textBlock.Text)
-				}
-			}
-		case *types.ResultMessage:
-			if m.Result != nil {
-				fmt.Printf("Result: %s\n", *m.Result)
-			}
-			if m.TotalCostUSD != nil {
-				fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
-			}
-		}
-	}
 }

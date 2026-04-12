@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // Helper function to create string pointer

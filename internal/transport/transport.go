@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/errors"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/errors"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // SDKVersion is the current version of the Go SDK.
@@ -835,7 +835,7 @@ func (t *SubprocessCLITransport) checkClaudeVersion(ctx context.Context) error {
 			fmt.Sscanf(minParts[i], "%d", &mPart)
 
 			if vPart < mPart {
-				return fmt.Errorf("Warning: Claude Code version %s is unsupported in the Agent SDK. "+
+				return fmt.Errorf("warning: Claude Code version %s is unsupported in the Agent SDK. "+
 					"Minimum required version is %s. Some features may not work correctly", version, MinimumClaudeCodeVersion)
 			} else if vPart > mPart {
 				break

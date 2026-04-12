@@ -1,7 +1,7 @@
 // Package e2e_tests contains end-to-end tests for the Claude Agent SDK.
 //
 // These tests require a valid API key configuration.
-// Run with: go test ./e2e-tests/... -v
+// Run with: go test ./e2e/... -v
 //
 // To skip tests without API key: tests will be skipped automatically.
 // Supported configurations (in priority order):
@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/config"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/config"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // SkipIfNoAPIKey skips the test if no API key is configured or if running in short mode.
@@ -95,33 +95,6 @@ func HasAPIKey() bool {
 	return config.HasAPIKey()
 }
 
-// Helper functions for pointer types
-
-// permissionModePtr returns a pointer to a PermissionMode.
-func permissionModePtr(mode types.PermissionMode) *types.PermissionMode {
-	return &mode
-}
-
-// stringPtr returns a pointer to a string.
-func stringPtr(s string) *string {
-	return &s
-}
-
-// intPtr returns a pointer to an int.
-func intPtr(i int) *int {
-	return &i
-}
-
-// float64Ptr returns a pointer to a float64.
-func float64Ptr(f float64) *float64 {
-	return &f
-}
-
-// boolPtr returns a pointer to a bool.
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 // truncateString truncates a string to maxLen characters for logging
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
@@ -148,6 +121,11 @@ func formatResult(result *string) string {
 		return "<nil>"
 	}
 	return truncateString(*result, 100)
+}
+
+// permissionModePtr returns a pointer to a PermissionMode.
+func permissionModePtr(mode types.PermissionMode) *types.PermissionMode {
+	return &mode
 }
 
 // consumeMessagesUntilResult consumes messages from the channel until a ResultMessage

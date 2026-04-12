@@ -18,11 +18,11 @@ package claude
 import (
 	"context"
 
-	"github.com/unitsvc/claude-agent-sdk-golang/client"
-	sdkerrors "github.com/unitsvc/claude-agent-sdk-golang/errors"
-	"github.com/unitsvc/claude-agent-sdk-golang/internal/sessions"
-	"github.com/unitsvc/claude-agent-sdk-golang/query"
-	"github.com/unitsvc/claude-agent-sdk-golang/types"
+	"github.com/next-bin/claude-agent-sdk-golang/client"
+	sdkerrors "github.com/next-bin/claude-agent-sdk-golang/errors"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/sessions"
+	"github.com/next-bin/claude-agent-sdk-golang/query"
+	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 // Query sends a one-shot query to Claude and returns messages through a channel.

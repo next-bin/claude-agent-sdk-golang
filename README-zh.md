@@ -1,7 +1,7 @@
 # Claude Agent SDK for Go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/unitsvc/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/unitsvc/claude-agent-sdk-golang)
-[![Go Report Card](https://goreportcard.com/badge/github.com/unitsvc/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/unitsvc/claude-agent-sdk-golang)
+[![Go Reference](https://pkg.go.dev/badge/github.com/next-bin/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/next-bin/claude-agent-sdk-golang)
+[![Go Report Card](https://goreportcard.com/badge/github.com/next-bin/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/next-bin/claude-agent-sdk-golang)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [English Documentation](README.md)
@@ -31,18 +31,18 @@
 
 ## 特性
 
-| 特性 | 描述 |
-|------|------|
-| 🔄 **完整 API 兼容** | 与 Python SDK v0.1.50 完全兼容 |
-| 📡 **流式消息** | 通过 Go channel 实现实时消息流 |
+| 特性                  | 描述                                          |
+| --------------------- | --------------------------------------------- |
+| 🔄 **完整 API 兼容**  | 与 Python SDK v0.1.50 完全兼容                |
+| 📡 **流式消息**       | 通过 Go channel 实现实时消息流                |
 | 🔌 **MCP 服务器支持** | 支持 Stdio、SSE、HTTP 和进程内 SDK MCP 服务器 |
-| 🪝 **Hook 系统** | 12 种 hook 事件用于工具生命周期管理 |
-| 🔐 **权限控制** | 细粒度的工具权限回调 |
-| 💾 **会话 API** | 列出、查询、重命名和标记对话会话 |
-| 🎯 **类型安全** | Go 泛型提供编译时类型检查 |
-| ⚡ **并发支持** | 原生 goroutine + channel 模式 |
-| 📊 **费用追踪** | 内置使用量和费用追踪 |
-| 🛠️ **自定义工具** | 使用 JSON Schema 验证定义自定义工具 |
+| 🪝 **Hook 系统**      | 12 种 hook 事件用于工具生命周期管理           |
+| 🔐 **权限控制**       | 细粒度的工具权限回调                          |
+| 💾 **会话 API**       | 列出、查询、重命名和标记对话会话              |
+| 🎯 **类型安全**       | Go 泛型提供编译时类型检查                     |
+| ⚡ **并发支持**       | 原生 goroutine + channel 模式                 |
+| 📊 **费用追踪**       | 内置使用量和费用追踪                          |
+| 🛠️ **自定义工具**     | 使用 JSON Schema 验证定义自定义工具           |
 
 ## 环境要求
 
@@ -70,20 +70,20 @@ claude --version
 ## 安装
 
 ```bash
-go get github.com/unitsvc/claude-agent-sdk-golang
+go get github.com/next-bin/claude-agent-sdk-golang
 ```
 
 ### Go Modules
 
 ```go
-import claude "github.com/unitsvc/claude-agent-sdk-golang"
+import claude "github.com/next-bin/claude-agent-sdk-golang"
 ```
 
 ### 版本固定
 
 ```go
 // go.mod
-require github.com/unitsvc/claude-agent-sdk-golang v0.1.50
+require github.com/next-bin/claude-agent-sdk-golang v0.1.50
 ```
 
 ## 快速开始
@@ -100,8 +100,8 @@ import (
     "fmt"
     "log"
 
-    claude "github.com/unitsvc/claude-agent-sdk-golang"
-    "github.com/unitsvc/claude-agent-sdk-golang/types"
+    claude "github.com/next-bin/claude-agent-sdk-golang"
+    "github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -150,8 +150,8 @@ import (
     "os/signal"
     "syscall"
 
-    claude "github.com/unitsvc/claude-agent-sdk-golang"
-    "github.com/unitsvc/claude-agent-sdk-golang/types"
+    claude "github.com/next-bin/claude-agent-sdk-golang"
+    "github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
 func main() {
@@ -227,15 +227,15 @@ func main() {
 
 ### 核心组件
 
-| 组件 | 描述 |
-|------|------|
-| **Query()** | 简单的一次性查询函数 |
-| **Client** | 用于交互式会话的全功能客户端 |
+| 组件           | 描述                              |
+| -------------- | --------------------------------- |
+| **Query()**    | 简单的一次性查询函数              |
+| **Client**     | 用于交互式会话的全功能客户端      |
 | **消息解析器** | 解析来自 Claude CLI 的 JSONL 消息 |
-| **Hook 系统** | 工具生命周期的事件驱动回调 |
-| **权限管理器** | 控制工具执行权限 |
-| **传输层** | 处理与 Claude CLI 的子进程通信 |
-| **会话 API** | 管理对话历史 |
+| **Hook 系统**  | 工具生命周期的事件驱动回调        |
+| **权限管理器** | 控制工具执行权限                  |
+| **传输层**     | 处理与 Claude CLI 的子进程通信    |
+| **会话 API**   | 管理对话历史                      |
 
 ### 项目结构
 
@@ -394,7 +394,7 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 无需外部进程创建自定义工具：
 
 ```go
-import "github.com/unitsvc/claude-agent-sdk-golang/sdkmcp"
+import "github.com/next-bin/claude-agent-sdk-golang/sdkmcp"
 
 // 定义计算器工具
 calculator := sdkmcp.CreateSdkMcpServer("calculator", []*sdkmcp.SdkMcpTool{
@@ -475,20 +475,20 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 #### Hook 事件
 
-| 事件 | 触发时机 | 输入类型 |
-|------|----------|----------|
-| `HookEventPreToolUse` | 工具执行前 | `PreToolUseHookInput` |
-| `HookEventPostToolUse` | 工具成功执行后 | `PostToolUseHookInput` |
+| 事件                          | 触发时机       | 输入类型                      |
+| ----------------------------- | -------------- | ----------------------------- |
+| `HookEventPreToolUse`         | 工具执行前     | `PreToolUseHookInput`         |
+| `HookEventPostToolUse`        | 工具成功执行后 | `PostToolUseHookInput`        |
 | `HookEventPostToolUseFailure` | 工具执行失败后 | `PostToolUseFailureHookInput` |
-| `HookEventUserPromptSubmit` | 用户提交提示时 | `UserPromptSubmitHookInput` |
-| `HookEventStop` | 对话停止时 | `StopHookInput` |
-| `HookEventSubagentStart` | 子代理启动时 | `SubagentStartHookInput` |
-| `HookEventSubagentStop` | 子代理停止时 | `SubagentStopHookInput` |
-| `HookEventPreCompact` | 上下文压缩前 | `PreCompactHookInput` |
-| `HookEventNotification` | 通知事件 | `NotificationHookInput` |
-| `HookEventPermissionRequest` | 权限请求时 | `PermissionRequestHookInput` |
-| `HookEventSessionStart` | 会话开始时 | `SessionStartHookInput` |
-| `HookEventSessionEnd` | 会话结束时 | `SessionEndHookInput` |
+| `HookEventUserPromptSubmit`   | 用户提交提示时 | `UserPromptSubmitHookInput`   |
+| `HookEventStop`               | 对话停止时     | `StopHookInput`               |
+| `HookEventSubagentStart`      | 子代理启动时   | `SubagentStartHookInput`      |
+| `HookEventSubagentStop`       | 子代理停止时   | `SubagentStopHookInput`       |
+| `HookEventPreCompact`         | 上下文压缩前   | `PreCompactHookInput`         |
+| `HookEventNotification`       | 通知事件       | `NotificationHookInput`       |
+| `HookEventPermissionRequest`  | 权限请求时     | `PermissionRequestHookInput`  |
+| `HookEventSessionStart`       | 会话开始时     | `SessionStartHookInput`       |
+| `HookEventSessionEnd`         | 会话结束时     | `SessionEndHookInput`         |
 
 ### 会话 API
 
@@ -551,12 +551,12 @@ err := claude.TagSession(
 
 ### 权限模式
 
-| 模式 | 描述 | 使用场景 |
-|------|------|----------|
-| `PermissionModeDefault` | 提示权限确认 | 交互式应用 |
-| `PermissionModeAcceptEdits` | 自动接受文件编辑 | 代码编辑工具 |
-| `PermissionModePlan` | 规划模式 | 复杂多步任务 |
-| `PermissionModeBypassPermissions` | 绕过所有权限 | 仅限可信环境 |
+| 模式                              | 描述             | 使用场景     |
+| --------------------------------- | ---------------- | ------------ |
+| `PermissionModeDefault`           | 提示权限确认     | 交互式应用   |
+| `PermissionModeAcceptEdits`       | 自动接受文件编辑 | 代码编辑工具 |
+| `PermissionModePlan`              | 规划模式         | 复杂多步任务 |
+| `PermissionModeBypassPermissions` | 绕过所有权限     | 仅限可信环境 |
 
 ```go
 // 自动接受编辑
@@ -777,23 +777,23 @@ client.GetServerInfo() *ServerInfo
 
 ### 配置选项参考
 
-| 选项 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `Model` | `*string` | `"sonnet"` | AI 模型：`"opus"`、`"sonnet"`、`"haiku"` |
-| `SystemPrompt` | `string` | `""` | 自定义系统提示 |
-| `CWD` | `*string` | 当前目录 | 工作目录 |
-| `MaxTurns` | `*int` | 无限制 | 最大对话轮次 |
-| `MaxBudgetUSD` | `*float64` | 无限制 | 最大预算（美元） |
-| `PermissionMode` | `*PermissionMode` | `default` | 权限处理模式 |
-| `CanUseTool` | `func` | `nil` | 工具权限回调 |
-| `Hooks` | `map` | `nil` | 事件 hooks |
-| `MCPServers` | `map` | `nil` | MCP 服务器配置 |
-| `AllowedTools` | `[]string` | 全部 | 允许的工具 |
-| `DisallowedTools` | `[]string` | 无 | 禁止的工具 |
-| `IncludePartialMessages` | `*bool` | `false` | 启用部分流式传输 |
-| `Agents` | `[]AgentDefinition` | `nil` | 自定义智能体定义 |
-| `CLIPath` | `*string` | 自动 | Claude CLI 路径 |
-| `Env` | `map[string]string` | `nil` | 额外的环境变量 |
+| 选项                     | 类型                | 默认值     | 描述                                     |
+| ------------------------ | ------------------- | ---------- | ---------------------------------------- |
+| `Model`                  | `*string`           | `"sonnet"` | AI 模型：`"opus"`、`"sonnet"`、`"haiku"` |
+| `SystemPrompt`           | `string`            | `""`       | 自定义系统提示                           |
+| `CWD`                    | `*string`           | 当前目录   | 工作目录                                 |
+| `MaxTurns`               | `*int`              | 无限制     | 最大对话轮次                             |
+| `MaxBudgetUSD`           | `*float64`          | 无限制     | 最大预算（美元）                         |
+| `PermissionMode`         | `*PermissionMode`   | `default`  | 权限处理模式                             |
+| `CanUseTool`             | `func`              | `nil`      | 工具权限回调                             |
+| `Hooks`                  | `map`               | `nil`      | 事件 hooks                               |
+| `MCPServers`             | `map`               | `nil`      | MCP 服务器配置                           |
+| `AllowedTools`           | `[]string`          | 全部       | 允许的工具                               |
+| `DisallowedTools`        | `[]string`          | 无         | 禁止的工具                               |
+| `IncludePartialMessages` | `*bool`             | `false`    | 启用部分流式传输                         |
+| `Agents`                 | `[]AgentDefinition` | `nil`      | 自定义智能体定义                         |
+| `CLIPath`                | `*string`           | 自动       | Claude CLI 路径                          |
+| `Env`                    | `map[string]string` | `nil`      | 额外的环境变量                           |
 
 ### 辅助函数
 
@@ -819,24 +819,24 @@ sdkmcp.ArrayProperty(items)         // 数组属性
 
 ### 顶级消息
 
-| 类型 | 描述 | 关键字段 |
-|------|------|----------|
-| `ResultMessage` | 最终结果 | `Result`, `SessionID`, `TotalCostUSD`, `DurationMS`, `NumTurns`, `StopReason` |
-| `AssistantMessage` | Claude 的响应 | `Content`, `Model`, `Usage` |
-| `UserMessage` | 用户输入 | `Content` |
-| `SystemMessage` | 系统事件 | `Subtype`, `Data` |
-| `StreamEvent` | 流式事件 | `Type`, `Data` |
-| `RateLimitEvent` | 速率限制信息 | `Type`, `Data` |
+| 类型               | 描述          | 关键字段                                                                      |
+| ------------------ | ------------- | ----------------------------------------------------------------------------- |
+| `ResultMessage`    | 最终结果      | `Result`, `SessionID`, `TotalCostUSD`, `DurationMS`, `NumTurns`, `StopReason` |
+| `AssistantMessage` | Claude 的响应 | `Content`, `Model`, `Usage`                                                   |
+| `UserMessage`      | 用户输入      | `Content`                                                                     |
+| `SystemMessage`    | 系统事件      | `Subtype`, `Data`                                                             |
+| `StreamEvent`      | 流式事件      | `Type`, `Data`                                                                |
+| `RateLimitEvent`   | 速率限制信息  | `Type`, `Data`                                                                |
 
 ### 内容块
 
-| 类型 | 描述 | 关键字段 |
-|------|------|----------|
-| `TextBlock` | 文本内容 | `Text` |
-| `ThinkingBlock` | 扩展思考 | `Thinking` |
-| `ToolUseBlock` | 工具请求 | `ID`, `Name`, `Input` |
-| `ToolResultBlock` | 工具结果 | `ToolUseID`, `Content`, `IsError` |
-| `GenericContentBlock` | 未知类型 | `Type`, `Raw` |
+| 类型                  | 描述     | 关键字段                          |
+| --------------------- | -------- | --------------------------------- |
+| `TextBlock`           | 文本内容 | `Text`                            |
+| `ThinkingBlock`       | 扩展思考 | `Thinking`                        |
+| `ToolUseBlock`        | 工具请求 | `ID`, `Name`, `Input`             |
+| `ToolResultBlock`     | 工具结果 | `ToolUseID`, `Content`, `IsError` |
+| `GenericContentBlock` | 未知类型 | `Type`, `Raw`                     |
 
 ## 错误处理
 
@@ -845,8 +845,8 @@ import (
     "errors"
     "log"
 
-    claude "github.com/unitsvc/claude-agent-sdk-golang"
-    sdkerrors "github.com/unitsvc/claude-agent-sdk-golang/errors"
+    claude "github.com/next-bin/claude-agent-sdk-golang"
+    sdkerrors "github.com/next-bin/claude-agent-sdk-golang/errors"
 )
 
 msgChan, err := client.Query(ctx, "你好")
@@ -890,28 +890,28 @@ if err != nil {
 
 [examples](examples/) 目录包含完整的示例：
 
-| 示例 | 描述 |
-|------|------|
-| `quick_start` | 基本用法模式 |
-| `streaming_mode` | 消息流式技术 |
-| `streaming_interactive` | 带上下文的交互式流式传输 |
-| `streaming_goroutines` | 并发流式模式 |
-| `hooks` | 包含所有事件的 Hook 系统 |
-| `tool_permission` | 权限回调示例 |
-| `mcp_calculator` | MCP 服务器集成 |
-| `mcp_sdk_simple` | 简单的进程内 MCP 服务器 |
-| `mcp_sdk_server` | 功能完整的 SDK MCP 服务器 |
-| `mcp_control` | MCP 服务器运行时控制 |
-| `agents` | 自定义智能体定义 |
-| `system_prompt` | 系统提示配置 |
-| `setting_sources` | 设置和配置 |
-| `budget` | 预算管理 |
-| `include_partial_messages` | 部分消息处理 |
-| `stderr_callback` | Stderr 输出处理 |
-| `tools_option` | 工具配置 |
-| `filesystem_agents` | 文件系统操作 |
-| `task_messages` | 任务事件处理 |
-| `plugin_example` | 插件集成 |
+| 示例                       | 描述                      |
+| -------------------------- | ------------------------- |
+| `quick_start`              | 基本用法模式              |
+| `streaming_mode`           | 消息流式技术              |
+| `streaming_interactive`    | 带上下文的交互式流式传输  |
+| `streaming_goroutines`     | 并发流式模式              |
+| `hooks`                    | 包含所有事件的 Hook 系统  |
+| `tool_permission`          | 权限回调示例              |
+| `mcp_calculator`           | MCP 服务器集成            |
+| `mcp_sdk_simple`           | 简单的进程内 MCP 服务器   |
+| `mcp_sdk_server`           | 功能完整的 SDK MCP 服务器 |
+| `mcp_control`              | MCP 服务器运行时控制      |
+| `agents`                   | 自定义智能体定义          |
+| `system_prompt`            | 系统提示配置              |
+| `setting_sources`          | 设置和配置                |
+| `budget`                   | 预算管理                  |
+| `include_partial_messages` | 部分消息处理              |
+| `stderr_callback`          | Stderr 输出处理           |
+| `tools_option`             | 工具配置                  |
+| `filesystem_agents`        | 文件系统操作              |
+| `task_messages`            | 任务事件处理              |
+| `plugin_example`           | 插件集成                  |
 
 ## 测试
 
@@ -1011,11 +1011,11 @@ client := claude.NewClientWithOptions(&types.ClaudeAgentOptions{
 
 ### 环境变量
 
-| 变量 | 描述 |
-|------|------|
-| `ANTHROPIC_API_KEY` | Anthropic API 密钥 |
-| `CLAUDE_CONFIG_DIR` | 自定义配置目录 |
-| `CLAUDE_CODE_ENTRYPOINT` | 入口点标识符 |
+| 变量                     | 描述               |
+| ------------------------ | ------------------ |
+| `ANTHROPIC_API_KEY`      | Anthropic API 密钥 |
+| `CLAUDE_CONFIG_DIR`      | 自定义配置目录     |
+| `CLAUDE_CODE_ENTRYPOINT` | 入口点标识符       |
 
 ## 最佳实践
 
@@ -1218,13 +1218,13 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ### 从 Python SDK 迁移
 
-| Python | Go |
-|--------|-----|
-| `from claude_agent_sdk import Query` | `import claude "github.com/unitsvc/claude-agent-sdk-golang"` |
-| `async for msg in query(...)` | `for msg := range claude.Query(...)` |
-| `options=ClaudeAgentOptions(...)` | `&types.ClaudeAgentOptions{...}` |
-| `permission_result_allow()` | `types.PermissionResultAllow{Behavior: "allow"}` |
-| `@tool` 装饰器 | `sdkmcp.Tool(...)` |
+| Python                               | Go                                                            |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `from claude_agent_sdk import Query` | `import claude "github.com/next-bin/claude-agent-sdk-golang"` |
+| `async for msg in query(...)`        | `for msg := range claude.Query(...)`                          |
+| `options=ClaudeAgentOptions(...)`    | `&types.ClaudeAgentOptions{...}`                              |
+| `permission_result_allow()`          | `types.PermissionResultAllow{Behavior: "allow"}`              |
+| `@tool` 装饰器                       | `sdkmcp.Tool(...)`                                            |
 
 ### 主要区别
 
@@ -1268,17 +1268,17 @@ CanUseTool: func(toolName string, input map[string]interface{}, ctx types.ToolPe
 
 ## Go SDK 优势
 
-| 功能 | Python SDK | Go SDK |
-|------|-----------|--------|
-| Hook 事件 | 10 | 12 (+SessionStart, SessionEnd) |
-| 单元测试 | 153 | 360+ |
-| E2E 测试 | 32 | 55+ |
-| Schema 辅助函数 | 有限 | 完整（Schema、SimpleSchema、Property helpers） |
-| Transport | 内部 | 导出接口 |
-| 速率限制事件 | 无 | 有（RateLimitEvent） |
-| 通用内容块 | 无 | 有（GenericContentBlock） |
-| 并发安全 | 部分 | 是（基于 channel） |
-| 内存占用 | 较高 | 较低 |
+| 功能            | Python SDK | Go SDK                                         |
+| --------------- | ---------- | ---------------------------------------------- |
+| Hook 事件       | 10         | 12 (+SessionStart, SessionEnd)                 |
+| 单元测试        | 153        | 360+                                           |
+| E2E 测试        | 32         | 55+                                            |
+| Schema 辅助函数 | 有限       | 完整（Schema、SimpleSchema、Property helpers） |
+| Transport       | 内部       | 导出接口                                       |
+| 速率限制事件    | 无         | 有（RateLimitEvent）                           |
+| 通用内容块      | 无         | 有（GenericContentBlock）                      |
+| 并发安全        | 部分       | 是（基于 channel）                             |
+| 内存占用        | 较高       | 较低                                           |
 
 ## 版本
 
@@ -1303,7 +1303,7 @@ MIT 许可证 - 详见 [LICENSE](LICENSE)。
 
 ```bash
 # 克隆仓库
-git clone https://github.com/unitsvc/claude-agent-sdk-golang.git
+git clone https://github.com/next-bin/claude-agent-sdk-golang.git
 cd claude-agent-sdk-golang
 
 # 安装依赖
