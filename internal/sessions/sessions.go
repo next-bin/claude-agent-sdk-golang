@@ -1138,9 +1138,17 @@ func readSessionFile(sessionID, directory string) (string, error) {
 
 // parseTranscriptEntries parses JSONL content into transcript entries.
 func parseTranscriptEntries(content string) []transcriptEntry {
+	entries, _ := parseTranscriptEntriesWithReplacements(content, "")
+	return entries
+}
+
+// parseTranscriptEntriesWithReplacements parses JSONL content into transcript entries
+// and collects content-replacement records for a specific session.
+func parseTranscriptEntriesWithReplacements(content string, sessionID string) ([]transcriptEntry, []interface{}) {
 	// Pre-allocate based on estimated line count
 	lineCount := strings.Count(content, "\n") + 1
 	entries := make([]transcriptEntry, 0, lineCount)
+	contentReplacements := make([]interface{}, 0)
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
@@ -1155,16 +1163,31 @@ func parseTranscriptEntries(content string) []transcriptEntry {
 		}
 
 		entryType, ok := entry["type"].(string)
-		if !ok || !transcriptEntryTypes[entryType] {
+		if !ok {
 			continue
 		}
 
-		if _, ok := entry["uuid"].(string); ok {
-			entries = append(entries, entry)
+		// Handle transcript entries
+		if transcriptEntryTypes[entryType] {
+			if _, ok := entry["uuid"].(string); ok {
+				entries = append(entries, entry)
+			}
+			continue
+		}
+
+		// Handle content-replacement entries
+		if entryType == "content-replacement" {
+			entrySessionID, _ := entry["sessionId"].(string)
+			if sessionID == "" || entrySessionID == sessionID {
+				replacements, ok := entry["replacements"].([]interface{})
+				if ok {
+					contentReplacements = append(contentReplacements, replacements...)
+				}
+			}
 		}
 	}
 
-	return entries
+	return entries, contentReplacements
 }
 
 // buildConversationChain builds the conversation chain by finding the leaf and walking parentUuid.
@@ -1193,7 +1216,10 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 	// Pre-allocate terminals slice
 	terminals := make([]transcriptEntry, 0, len(entries))
 	for _, entry := range entries {
-		uuid := entry["uuid"].(string)
+		uuid, ok := entry["uuid"].(string)
+		if !ok {
+			continue
+		}
 		if !parentUUIDs[uuid] {
 			terminals = append(terminals, entry)
 		}
@@ -1206,7 +1232,10 @@ func buildConversationChain(entries []transcriptEntry) []transcriptEntry {
 		seen := make(map[string]bool)
 
 		for {
-			uuid := cur["uuid"].(string)
+			uuid, ok := cur["uuid"].(string)
+			if !ok {
+				break
+			}
 			if seen[uuid] {
 				break
 			}
@@ -1611,8 +1640,8 @@ func ForkSession(sessionID, directory string, upToMessageID *string, title *stri
 		return nil, fmt.Errorf("session %s not found", sessionID)
 	}
 
-	// Parse entries
-	entries := parseTranscriptEntries(content)
+	// Parse entries and collect content-replacements
+	entries, contentReplacements := parseTranscriptEntriesWithReplacements(content, sessionID)
 
 	// Find the slice point if upToMessageID is specified
 	var sliceIndex int = -1
@@ -1716,6 +1745,16 @@ func ForkSession(sessionID, directory string, upToMessageID *string, title *stri
 			"sessionId":   newSessionID,
 		}
 		forkedEntries = append(forkedEntries, titleEntry)
+	}
+
+	// Append content-replacement entry (if any) with the fork's sessionId
+	if len(contentReplacements) > 0 {
+		replacementEntry := map[string]interface{}{
+			"type":         "content-replacement",
+			"sessionId":    newSessionID,
+			"replacements": contentReplacements,
+		}
+		forkedEntries = append(forkedEntries, replacementEntry)
 	}
 
 	// Write forked session file

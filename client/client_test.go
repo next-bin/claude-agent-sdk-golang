@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/next-bin/claude-agent-sdk-golang/internal/query"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/queryimpl"
 	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
@@ -867,7 +867,7 @@ func TestGenericHookInput(t *testing.T) {
 
 func TestHookConversionChain(t *testing.T) {
 	// This test verifies the full conversion chain from types.HookMatcher to
-	// query.HookMatcher through convertHooksToInternalFormat
+	// queryimpl.HookMatcher through convertHooksToInternalFormat
 
 	client := &Client{}
 	expectedOutput := types.SyncHookJSONOutput{
@@ -1057,5 +1057,5 @@ func findSubstring(s, substr string) bool {
 	return false
 }
 
-// Ensure query.HookMatcher interface is satisfied
-var _ = []query.HookMatcher{}
+// Ensure queryimpl.HookMatcher interface is satisfied
+var _ = []queryimpl.HookMatcher{}

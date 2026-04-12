@@ -73,3 +73,19 @@
 
 - **No Auto PRs**: Do NOT create pull requests automatically. Wait for explicit user instruction.
 - **No Auto Commits**: Do NOT commit code automatically. Stage changes and wait for user to review and commit explicitly.
+
+## API Patterns
+
+### Middleware Usage
+
+- Use `transport.NewMiddlewareTransport()` to wrap base transport with middleware
+- Middleware chain order: first middleware is outermost for writes
+- For metrics: use `transport.NewMetricsMiddleware()` and access counts via `GetWriteCount()` / `GetReadCount()`
+- For logging: use `transport.NewLoggingMiddleware()` with custom log functions
+
+### Functional Options Usage
+
+- Use `option.NewRequestConfig()` with `WithXXX()` functions for flexible configuration
+- Compose options by appending slices: `allOptions := append(baseOptions, extraOptions...)`
+- Apply options to existing config: `config.Apply(opts...)`
+- All options are type-safe and validated at construction time

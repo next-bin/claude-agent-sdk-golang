@@ -14,8 +14,8 @@ import (
 
 	"github.com/next-bin/claude-agent-sdk-golang/errors"
 	"github.com/next-bin/claude-agent-sdk-golang/internal/messageparser"
-	"github.com/next-bin/claude-agent-sdk-golang/internal/query"
-	"github.com/next-bin/claude-agent-sdk-golang/internal/transport"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/queryimpl"
+	"github.com/next-bin/claude-agent-sdk-golang/internal/transportimpl"
 	"github.com/next-bin/claude-agent-sdk-golang/types"
 )
 
@@ -30,9 +30,9 @@ import (
 // multi-turn conversations, and real-time applications.
 type Client struct {
 	options         *types.ClaudeAgentOptions
-	customTransport query.Transport
-	transport       query.Transport
-	query           *query.Query
+	customTransport queryimpl.Transport
+	transport       queryimpl.Transport
+	query           *queryimpl.Query
 	connected       bool
 
 	// Cached message channel for fan-out to multiple subscribers
@@ -45,6 +45,15 @@ type Client struct {
 }
 
 // New creates a new Claude SDK client with default options.
+//
+// Returns a client ready for connection. Use Connect() to establish
+// a connection before sending messages.
+//
+// Example:
+//
+//	c := client.New()
+//	defer c.Close()
+//	err := c.Connect(ctx, "Hello, Claude!")
 func New() *Client {
 	return NewWithOptions(nil)
 }
@@ -112,7 +121,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		if len(prompt) > 0 {
 			promptVal = prompt[0]
 		}
-		t, err := transport.NewSubprocessCLITransport(promptVal, options)
+		t, err := transportimpl.NewSubprocessCLITransport(promptVal, options)
 		if err != nil {
 			return err
 		}
@@ -124,13 +133,13 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 	}
 
 	// Extract SDK MCP servers from options
-	sdkMcpServers := make(map[string]query.McpServer)
+	sdkMcpServers := make(map[string]queryimpl.McpServer)
 	if c.options.MCPServers != nil {
 		// Try map[string]types.McpServerConfig first (typed map)
 		if servers, ok := c.options.MCPServers.(map[string]types.McpServerConfig); ok {
 			for name, config := range servers {
 				if sdkConfig, ok := config.(types.McpSdkServerConfig); ok {
-					if srv, ok := sdkConfig.Instance.(query.McpServer); ok {
+					if srv, ok := sdkConfig.Instance.(queryimpl.McpServer); ok {
 						sdkMcpServers[name] = srv
 					}
 				}
@@ -141,7 +150,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 				if cfg, ok := config.(map[string]interface{}); ok {
 					if cfg["type"] == "sdk" {
 						if instance, exists := cfg["instance"]; exists {
-							if srv, ok := instance.(query.McpServer); ok {
+							if srv, ok := instance.(queryimpl.McpServer); ok {
 								sdkMcpServers[name] = srv
 							}
 						}
@@ -183,13 +192,13 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 	}
 
 	// Convert hooks to internal format
-	var hooks map[string][]query.HookMatcher
+	var hooks map[string][]queryimpl.HookMatcher
 	if c.options.Hooks != nil {
 		hooks = c.convertHooksToInternalFormat(c.options.Hooks)
 	}
 
 	// Convert canUseTool callback
-	var canUseToolCb query.CanUseToolCallback
+	var canUseToolCb queryimpl.CanUseToolCallback
 	if c.options.CanUseTool != nil {
 		canUseToolCb = func(ctx context.Context, toolName string, input map[string]interface{}, context types.ToolPermissionContext) (types.PermissionResult, error) {
 			return c.options.CanUseTool(toolName, input, context)
@@ -197,7 +206,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 	}
 
 	// Create Query to handle control protocol
-	c.query = query.NewQuery(
+	c.query = queryimpl.NewQuery(
 		c.transport,
 		true, // ClaudeSDKClient always uses streaming mode
 		canUseToolCb,
@@ -271,13 +280,13 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 }
 
 // convertHooksToInternalFormat converts HookMatcher format to internal Query format.
-func (c *Client) convertHooksToInternalFormat(hooks map[types.HookEvent][]types.HookMatcher) map[string][]query.HookMatcher {
-	internalHooks := make(map[string][]query.HookMatcher)
+func (c *Client) convertHooksToInternalFormat(hooks map[types.HookEvent][]types.HookMatcher) map[string][]queryimpl.HookMatcher {
+	internalHooks := make(map[string][]queryimpl.HookMatcher)
 	for event, matchers := range hooks {
-		internalHooks[string(event)] = make([]query.HookMatcher, 0, len(matchers))
+		internalHooks[string(event)] = make([]queryimpl.HookMatcher, 0, len(matchers))
 		for _, matcher := range matchers {
 			// Convert hook callbacks - wrap interface to function type
-			var callbacks []query.HookCallbackFunc
+			var callbacks []queryimpl.HookCallbackFunc
 			for _, cb := range matcher.Hooks {
 				// Create a wrapper that adapts the HookCallback interface to HookCallbackFunc
 				callback := cb // capture loop variable
@@ -293,7 +302,7 @@ func (c *Client) convertHooksToInternalFormat(hooks map[types.HookEvent][]types.
 				}
 				callbacks = append(callbacks, wrapper)
 			}
-			internalMatcher := query.HookMatcher{
+			internalMatcher := queryimpl.HookMatcher{
 				Matcher: matcher.Matcher,
 				Hooks:   callbacks,
 			}

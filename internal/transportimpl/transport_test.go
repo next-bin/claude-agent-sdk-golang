@@ -1,5 +1,5 @@
 // Package transport provides transport layer implementations for the Claude Agent SDK.
-package transport
+package transportimpl
 
 import (
 	"context"

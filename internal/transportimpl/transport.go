@@ -2,7 +2,7 @@
 //
 // This package is internal and not intended for direct use by SDK consumers.
 // It handles communication with the Claude CLI subprocess.
-package transport
+package transportimpl
 
 import (
 	"bufio"

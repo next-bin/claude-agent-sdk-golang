@@ -31,13 +31,12 @@
     - [可用钩子事件](#可用钩子事件)
   - [会话 API](#会话-api)
   - [动态控制](#动态控制)
+  - [传输中间件](#传输中间件)
+  - [函数式选项](#函数式选项)
 - **资源**
   - [示例](#示例)
   - [贡献](#贡献)
   - [相关项目](#相关项目)
-- [错误处理](#错误处理)
-- [示例](#示例)
-- [贡献](#贡献)
 
 ## 安装
 
@@ -261,6 +260,100 @@ status, err := c.GetMCPStatus(ctx)
 err = c.Interrupt(ctx)
 ```
 
+## 传输中间件
+
+中间件允许拦截传输操作，用于日志、调试、指标收集或消息转换。
+
+```go
+import "github.com/next-bin/claude-agent-sdk-golang/transport"
+
+// 创建日志中间件
+loggingMiddleware := transport.NewLoggingMiddleware(
+    func(ctx context.Context, data string) {
+        log.Printf("[写入] %s", data)
+    },
+    func(ctx context.Context, msg map[string]interface{}) {
+        log.Printf("[读取] type=%s", msg["type"])
+    },
+)
+
+// 创建指标中间件
+metricsMiddleware := transport.NewMetricsMiddleware()
+
+// 用中间件包装传输
+wrappedTransport := transport.NewMiddlewareTransport(
+    baseTransport,
+    loggingMiddleware,
+    metricsMiddleware,
+)
+
+// 使用包装的传输与客户端
+c := client.NewWithOptions(&types.ClaudeAgentOptions{})
+c.Connect(ctx)
+```
+
+### 自定义中间件
+
+```go
+type myMiddleware struct{}
+
+func (m *myMiddleware) InterceptWrite(ctx context.Context, data string) (string, error) {
+    // 修改或记录写入数据
+    return data, nil
+}
+
+func (m *myMiddleware) InterceptRead(ctx context.Context, msg map[string]interface{}) (map[string]interface{}, error) {
+    // 过滤或转换读取消息
+    if msg["type"] == "filtered_type" {
+        return nil, nil // 过滤掉此消息
+    }
+    return msg, nil
+}
+```
+
+## 函数式选项
+
+函数式选项提供了一种灵活的方式来配置 SDK 操作，无需大型参数结构体。
+
+```go
+import "github.com/next-bin/claude-agent-sdk-golang/option"
+
+// 使用函数式选项创建配置
+config, err := option.NewRequestConfig(
+    option.WithSystemPrompt("你是一个有用的助手"),
+    option.WithModel(types.ModelSonnet),
+    option.WithMaxTurns(5),
+    option.WithPermissionMode(types.PermissionModeAcceptEdits),
+)
+
+// 组合选项
+baseOptions := []option.RequestOption{
+    option.WithSystemPrompt("基础提示"),
+    option.WithMaxTurns(10),
+}
+
+extraOptions := []option.RequestOption{
+    option.WithModel(types.ModelOpus),
+}
+
+allOptions := append(baseOptions, extraOptions...)
+config, err := option.NewRequestConfig(allOptions...)
+```
+
+### 可用选项
+
+| 选项 | 说明 |
+|------|------|
+| `WithSystemPrompt(prompt)` | 设置系统提示 |
+| `WithModel(model)` | 设置 AI 模型 |
+| `WithMaxTurns(turns)` | 设置最大对话轮次 |
+| `WithPermissionMode(mode)` | 设置权限模式 |
+| `WithTools(tools)` | 设置允许的工具 |
+| `WithHooks(hooks)` | 设置钩子配置 |
+| `WithMCPServers(servers)` | 设置 MCP 服务器配置 |
+| `WithCWD(dir)` | 设置工作目录 |
+| `WithEffort(level)` | 设置努力级别 (low/medium/high/max) |
+
 ## 错误处理
 
 ```go
@@ -283,14 +376,16 @@ if err != nil {
 
 ## 示例
 
-| 示例                                         | 说明         |
-| -------------------------------------------- | ------------ |
-| [quick_start](examples/quick_start/)         | 基本查询     |
-| [streaming_mode](examples/streaming_mode/)   | 交互式客户端 |
-| [mcp_sdk_server](examples/mcp_sdk_server/)   | 自定义工具   |
-| [hooks](examples/hooks/)                     | 钩子系统     |
-| [tool_permission](examples/tool_permission/) | 权限回调     |
-| [agents](examples/agents/)                   | 自定义智能体 |
+| 示例                                         | 说明           |
+| -------------------------------------------- | -------------- |
+| [quick_start](examples/quick_start/)         | 基本查询       |
+| [streaming_mode](examples/streaming_mode/)   | 交互式客户端   |
+| [mcp_sdk_server](examples/mcp_sdk_server/)   | 自定义工具     |
+| [hooks](examples/hooks/)                     | 钩子系统       |
+| [tool_permission](examples/tool_permission/) | 权限回调       |
+| [agents](examples/agents/)                   | 自定义智能体   |
+| [middleware](examples/middleware/)           | 传输中间件     |
+| [options](examples/options/)                 | 函数式选项     |
 
 ## 贡献
 

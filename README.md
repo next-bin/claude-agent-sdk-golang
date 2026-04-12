@@ -31,6 +31,8 @@ A Go SDK for building AI agents with [Claude Code](https://code.claude.com/). Pr
     - [Available Hook Events](#available-hook-events)
   - [Sessions API](#sessions-api)
   - [Dynamic Control](#dynamic-control)
+  - [Transport Middleware](#transport-middleware)
+  - [Functional Options](#functional-options)
 - **Resources**
   - [Examples](#examples)
   - [Contributing](#contributing)
@@ -300,6 +302,100 @@ status, err := c.GetMCPStatus(ctx)
 err = c.Interrupt(ctx)
 ```
 
+## Transport Middleware
+
+Middleware allows intercepting transport operations for logging, debugging, metrics collection, or message transformation.
+
+```go
+import "github.com/next-bin/claude-agent-sdk-golang/transport"
+
+// Create logging middleware
+loggingMiddleware := transport.NewLoggingMiddleware(
+    func(ctx context.Context, data string) {
+        log.Printf("[WRITE] %s", data)
+    },
+    func(ctx context.Context, msg map[string]interface{}) {
+        log.Printf("[READ] type=%s", msg["type"])
+    },
+)
+
+// Create metrics middleware
+metricsMiddleware := transport.NewMetricsMiddleware()
+
+// Wrap transport with middleware
+wrappedTransport := transport.NewMiddlewareTransport(
+    baseTransport,
+    loggingMiddleware,
+    metricsMiddleware,
+)
+
+// Use wrapped transport with client
+c := client.NewWithOptions(&types.ClaudeAgentOptions{})
+c.Connect(ctx)
+```
+
+### Custom Middleware
+
+```go
+type myMiddleware struct{}
+
+func (m *myMiddleware) InterceptWrite(ctx context.Context, data string) (string, error) {
+    // Modify or log write data
+    return data, nil
+}
+
+func (m *myMiddleware) InterceptRead(ctx context.Context, msg map[string]interface{}) (map[string]interface{}, error) {
+    // Filter or transform read messages
+    if msg["type"] == "filtered_type" {
+        return nil, nil // Filter out this message
+    }
+    return msg, nil
+}
+```
+
+## Functional Options
+
+Functional options provide a flexible way to configure SDK operations without large parameter structs.
+
+```go
+import "github.com/next-bin/claude-agent-sdk-golang/option"
+
+// Create configuration with functional options
+config, err := option.NewRequestConfig(
+    option.WithSystemPrompt("You are a helpful assistant"),
+    option.WithModel(types.ModelSonnet),
+    option.WithMaxTurns(5),
+    option.WithPermissionMode(types.PermissionModeAcceptEdits),
+)
+
+// Compose options
+baseOptions := []option.RequestOption{
+    option.WithSystemPrompt("Base prompt"),
+    option.WithMaxTurns(10),
+}
+
+extraOptions := []option.RequestOption{
+    option.WithModel(types.ModelOpus),
+}
+
+allOptions := append(baseOptions, extraOptions...)
+config, err := option.NewRequestConfig(allOptions...)
+```
+
+### Available Options
+
+| Option | Description |
+|--------|-------------|
+| `WithSystemPrompt(prompt)` | Set system prompt |
+| `WithModel(model)` | Set AI model |
+| `WithMaxTurns(turns)` | Set max conversation turns |
+| `WithPermissionMode(mode)` | Set permission mode |
+| `WithTools(tools)` | Set allowed tools |
+| `WithHooks(hooks)` | Set hook configurations |
+| `WithMCPServers(servers)` | Set MCP server configs |
+| `WithCWD(dir)` | Set working directory |
+| `WithEffort(level)` | Set effort level (low/medium/high/max) |
+
 ## Error Handling
 
 ```go
@@ -322,14 +418,16 @@ if err != nil {
 
 ## Examples
 
-| Example                                      | Description          |
-| -------------------------------------------- | -------------------- |
-| [quick_start](examples/quick_start/)         | Basic query          |
-| [streaming_mode](examples/streaming_mode/)   | Interactive client   |
-| [mcp_sdk_server](examples/mcp_sdk_server/)   | Custom tools         |
-| [hooks](examples/hooks/)                     | Hook system          |
-| [tool_permission](examples/tool_permission/) | Permission callbacks |
-| [agents](examples/agents/)                   | Custom agents        |
+| Example                                      | Description              |
+| -------------------------------------------- | ------------------------ |
+| [quick_start](examples/quick_start/)         | Basic query              |
+| [streaming_mode](examples/streaming_mode/)   | Interactive client       |
+| [mcp_sdk_server](examples/mcp_sdk_server/)   | Custom tools             |
+| [hooks](examples/hooks/)                     | Hook system              |
+| [tool_permission](examples/tool_permission/) | Permission callbacks     |
+| [agents](examples/agents/)                   | Custom agents            |
+| [middleware](examples/middleware/)           | Transport middleware     |
+| [options](examples/options/)                 | Functional options       |
 
 ## Contributing
 

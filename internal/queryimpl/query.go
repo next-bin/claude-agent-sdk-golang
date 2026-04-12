@@ -2,7 +2,7 @@
 //
 // This package is internal and not intended for direct use by SDK consumers.
 // It handles the bidirectional control protocol on top of the transport layer.
-package query
+package queryimpl
 
 import (
 	"context"
@@ -264,6 +264,7 @@ func (q *Query) readMessages() {
 				}
 
 				q.mu.Lock()
+				var pendingChan chan struct{}
 				if pending, exists := q.pendingControlResponses[requestID]; exists {
 					subtype, _ := response["subtype"].(string)
 					if subtype == "error" {
@@ -275,9 +276,12 @@ func (q *Query) readMessages() {
 					} else {
 						q.pendingControlResults[requestID] = response
 					}
-					close(pending.done)
+					pendingChan = pending.done
 				}
 				q.mu.Unlock()
+				if pendingChan != nil {
+					close(pendingChan)
+				}
 				continue
 			}
 

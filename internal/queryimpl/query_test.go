@@ -1,5 +1,5 @@
 // Package query provides internal query implementation for the Claude Agent SDK.
-package query
+package queryimpl
 
 import (
 	"context"
