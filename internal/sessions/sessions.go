@@ -1711,9 +1711,9 @@ func ForkSession(sessionID, directory string, upToMessageID *string, title *stri
 	// Add custom-title entry for the fork
 	if forkTitle != "" {
 		titleEntry := map[string]interface{}{
-			"type":         "custom-title",
-			"customTitle":  forkTitle,
-			"sessionId":    newSessionID,
+			"type":        "custom-title",
+			"customTitle": forkTitle,
+			"sessionId":   newSessionID,
 		}
 		forkedEntries = append(forkedEntries, titleEntry)
 	}

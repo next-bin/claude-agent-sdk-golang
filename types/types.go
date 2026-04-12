@@ -1612,17 +1612,17 @@ type ContextUsageCategory struct {
 // ContextUsageResponse provides a breakdown of current context window usage
 // by category, matching the data shown by the /context command in the CLI.
 type ContextUsageResponse struct {
-	Categories          []ContextUsageCategory   `json:"categories"`
-	TotalTokens         int                      `json:"totalTokens"`
-	MaxTokens           int                      `json:"maxTokens"`
-	RawMaxTokens        int                      `json:"rawMaxTokens"`
-	Percentage          float64                  `json:"percentage"`
-	Model               string                   `json:"model"`
-	IsAutoCompactEnabled bool                     `json:"isAutoCompactEnabled"`
-	MemoryFiles         []map[string]interface{} `json:"memoryFiles"`
-	MCPTools            []map[string]interface{} `json:"mcpTools"`
-	Agents              []map[string]interface{} `json:"agents"`
-	GridRows            [][]map[string]interface{} `json:"gridRows"`
+	Categories           []ContextUsageCategory     `json:"categories"`
+	TotalTokens          int                        `json:"totalTokens"`
+	MaxTokens            int                        `json:"maxTokens"`
+	RawMaxTokens         int                        `json:"rawMaxTokens"`
+	Percentage           float64                    `json:"percentage"`
+	Model                string                     `json:"model"`
+	IsAutoCompactEnabled bool                       `json:"isAutoCompactEnabled"`
+	MemoryFiles          []map[string]interface{}   `json:"memoryFiles"`
+	MCPTools             []map[string]interface{}   `json:"mcpTools"`
+	Agents               []map[string]interface{}   `json:"agents"`
+	GridRows             [][]map[string]interface{} `json:"gridRows"`
 
 	// Optional fields
 	AutoCompactThreshold *int                     `json:"autoCompactThreshold,omitempty"`

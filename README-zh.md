@@ -1,23 +1,40 @@
-# Claude Agent SDK for Go
+# Claude Agent SDK for Golang
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/next-bin/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/next-bin/claude-agent-sdk-golang)
-[![Go Report Card](https://goreportcard.com/badge/github.com/next-bin/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/next-bin/claude-agent-sdk-golang)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go 1.26+">
+  <a href="https://pkg.go.dev/github.com/next-bin/claude-agent-sdk-golang"><img src="https://pkg.go.dev/badge/github.com/next-bin/claude-agent-sdk-golang.svg" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/next-bin/claude-agent-sdk-golang"><img src="https://goreportcard.com/badge/github.com/next-bin/claude-agent-sdk-golang" alt="Go Report Card"></a>
+</p>
 
-[English](README.md)
+<p align="center">
+  <a href="README.md">English</a>
+</p>
 
 用于构建 Claude 智能体的 Go SDK。提供查询、交互式会话、自定义工具、钩子和会话管理等高级 API。
 
 ## 目录
 
-- [安装](#安装)
-- [快速开始](#快速开始)
-- [基本用法](#基本用法)
-- [交互式会话](#交互式会话)
-- [自定义工具](#自定义工具)
-- [钩子](#钩子)
-- [会话 API](#会话-api)
-- [动态控制](#动态控制)
+- **入门**
+  - [安装](#安装)
+  - [快速开始](#快速开始)
+- **核心概念**
+  - [基本用法](#基本用法)
+    - [工具权限](#工具权限)
+    - [工作目录](#工作目录)
+  - [交互式会话](#交互式会话)
+  - [错误处理](#错误处理)
+- **高级功能**
+  - [自定义工具](#自定义工具)
+    - [混合服务器](#混合服务器)
+  - [钩子](#钩子)
+    - [可用钩子事件](#可用钩子事件)
+  - [会话 API](#会话-api)
+  - [动态控制](#动态控制)
+- **资源**
+  - [示例](#示例)
+  - [贡献](#贡献)
+  - [相关项目](#相关项目)
 - [错误处理](#错误处理)
 - [示例](#示例)
 - [贡献](#贡献)
@@ -30,9 +47,9 @@ go get github.com/next-bin/claude-agent-sdk-golang
 
 **依赖：**
 
-| 依赖 | 说明 |
-|------|------|
-| **Go** | 1.21 或更高版本 |
+| 依赖                | 说明                                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| **Go**              | 1.26 或更高版本                                                        |
 | **Claude Code CLI** | 已安装并认证（[安装指南](https://code.claude.com/docs/en/quickstart)） |
 
 ## 快速开始
@@ -184,18 +201,18 @@ func (h *bashHook) Execute(input types.HookInput, toolUseID *string, ctx types.H
 
 ### 可用钩子事件
 
-| 钩子 | 说明 |
-|------|------|
-| `PreToolUse` | 工具执行前 |
-| `PostToolUse` | 工具执行后 |
-| `PostToolUseFailure` | 工具失败时 |
-| `UserPromptSubmit` | 用户提交消息时 |
-| `Stop` | 智能体停止时 |
-| `SubagentStart` | 子智能体启动时 |
-| `SubagentStop` | 子智能体停止时 |
-| `PreCompact` | 上下文压缩前 |
-| `Notification` | 通知 |
-| `PermissionRequest` | 请求权限时 |
+| 钩子                 | 说明           |
+| -------------------- | -------------- |
+| `PreToolUse`         | 工具执行前     |
+| `PostToolUse`        | 工具执行后     |
+| `PostToolUseFailure` | 工具失败时     |
+| `UserPromptSubmit`   | 用户提交消息时 |
+| `Stop`               | 智能体停止时   |
+| `SubagentStart`      | 子智能体启动时 |
+| `SubagentStop`       | 子智能体停止时 |
+| `PreCompact`         | 上下文压缩前   |
+| `Notification`       | 通知           |
+| `PermissionRequest`  | 请求权限时     |
 
 ## 会话 API
 
@@ -266,14 +283,14 @@ if err != nil {
 
 ## 示例
 
-| 示例 | 说明 |
-|------|------|
-| [quick_start](examples/quick_start/) | 基本查询 |
-| [streaming_mode](examples/streaming_mode/) | 交互式客户端 |
-| [mcp_sdk_server](examples/mcp_sdk_server/) | 自定义工具 |
-| [hooks](examples/hooks/) | 钩子系统 |
-| [tool_permission](examples/tool_permission/) | 权限回调 |
-| [agents](examples/agents/) | 自定义智能体 |
+| 示例                                         | 说明         |
+| -------------------------------------------- | ------------ |
+| [quick_start](examples/quick_start/)         | 基本查询     |
+| [streaming_mode](examples/streaming_mode/)   | 交互式客户端 |
+| [mcp_sdk_server](examples/mcp_sdk_server/)   | 自定义工具   |
+| [hooks](examples/hooks/)                     | 钩子系统     |
+| [tool_permission](examples/tool_permission/) | 权限回调     |
+| [agents](examples/agents/)                   | 自定义智能体 |
 
 ## 贡献
 

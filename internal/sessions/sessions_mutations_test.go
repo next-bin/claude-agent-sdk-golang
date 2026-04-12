@@ -109,7 +109,7 @@ func makeTranscriptSession(projectDir, sessionID string, numTurns int) (string, 
 			"sessionId":  sessionID,
 			"timestamp":  "2024-01-15T10:30:01Z",
 			"message": map[string]interface{}{
-				"role":    "assistant",
+				"role": "assistant",
 				"content": []interface{}{
 					map[string]interface{}{
 						"type": "text",

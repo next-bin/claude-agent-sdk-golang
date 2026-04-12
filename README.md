@@ -1,26 +1,40 @@
-# Claude Agent SDK for Go
+# Claude Agent SDK for Golang
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/next-bin/claude-agent-sdk-golang.svg)](https://pkg.go.dev/github.com/next-bin/claude-agent-sdk-golang)
-[![Go Report Card](https://goreportcard.com/badge/github.com/next-bin/claude-agent-sdk-golang)](https://goreportcard.com/report/github.com/next-bin/claude-agent-sdk-golang)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go 1.26+">
+  <a href="https://pkg.go.dev/github.com/next-bin/claude-agent-sdk-golang"><img src="https://pkg.go.dev/badge/github.com/next-bin/claude-agent-sdk-golang.svg" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/next-bin/claude-agent-sdk-golang"><img src="https://goreportcard.com/badge/github.com/next-bin/claude-agent-sdk-golang" alt="Go Report Card"></a>
+</p>
 
-[中文文档](README-zh.md)
+<p align="center">
+  <a href="README-zh.md">中文文档</a>
+</p>
 
 A Go SDK for building AI agents with [Claude Code](https://code.claude.com/). Provides a high-level API for querying Claude, managing interactive sessions, defining custom tools, intercepting agent behavior with hooks, and managing conversation sessions.
 
 ## Table of Contents
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Basic Usage](#basic-usage)
-- [Interactive Sessions](#interactive-sessions)
-- [Custom Tools](#custom-tools)
-- [Hooks](#hooks)
-- [Sessions API](#sessions-api)
-- [Dynamic Control](#dynamic-control)
-- [Error Handling](#error-handling)
-- [Examples](#examples)
-- [Contributing](#contributing)
+- **Getting Started**
+  - [Installation](#installation)
+  - [Quick Start](#quick-start)
+- **Core Concepts**
+  - [Basic Usage](#basic-usage)
+    - [Tool Permissions](#tool-permissions)
+    - [Working Directory](#working-directory)
+  - [Interactive Sessions](#interactive-sessions)
+  - [Error Handling](#error-handling)
+- **Advanced Features**
+  - [Custom Tools](#custom-tools)
+    - [Mixed Server Support](#mixed-server)
+  - [Hooks](#hooks)
+    - [Available Hook Events](#available-hook-events)
+  - [Sessions API](#sessions-api)
+  - [Dynamic Control](#dynamic-control)
+- **Resources**
+  - [Examples](#examples)
+  - [Contributing](#contributing)
+  - [Related Projects](#related-projects)
 
 ## Installation
 
@@ -30,9 +44,9 @@ go get github.com/next-bin/claude-agent-sdk-golang
 
 **Requirements:**
 
-| Requirement | Details |
-|-------------|---------|
-| **Go** | 1.21 or later |
+| Requirement         | Details                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| **Go**              | 1.26 or later                                                                             |
 | **Claude Code CLI** | Installed and authenticated ([install guide](https://code.claude.com/docs/en/quickstart)) |
 
 ## Quick Start
@@ -225,18 +239,18 @@ opts := &types.ClaudeAgentOptions{
 
 ### Available Hook Events
 
-| Event | Description |
-|-------|-------------|
-| `PreToolUse` | Before a tool is executed |
-| `PostToolUse` | After a tool executes |
-| `PostToolUseFailure` | When a tool fails |
-| `UserPromptSubmit` | When user submits a prompt |
-| `Stop` | When agent stops |
-| `SubagentStart` | When a sub-agent starts |
-| `SubagentStop` | When a sub-agent stops |
-| `PreCompact` | Before context compaction |
-| `Notification` | For notifications |
-| `PermissionRequest` | When permission is requested |
+| Event                | Description                  |
+| -------------------- | ---------------------------- |
+| `PreToolUse`         | Before a tool is executed    |
+| `PostToolUse`        | After a tool executes        |
+| `PostToolUseFailure` | When a tool fails            |
+| `UserPromptSubmit`   | When user submits a prompt   |
+| `Stop`               | When agent stops             |
+| `SubagentStart`      | When a sub-agent starts      |
+| `SubagentStop`       | When a sub-agent stops       |
+| `PreCompact`         | Before context compaction    |
+| `Notification`       | For notifications            |
+| `PermissionRequest`  | When permission is requested |
 
 ## Sessions API
 
@@ -308,14 +322,14 @@ if err != nil {
 
 ## Examples
 
-| Example | Description |
-|---------|-------------|
-| [quick_start](examples/quick_start/) | Basic query |
-| [streaming_mode](examples/streaming_mode/) | Interactive client |
-| [mcp_sdk_server](examples/mcp_sdk_server/) | Custom tools |
-| [hooks](examples/hooks/) | Hook system |
+| Example                                      | Description          |
+| -------------------------------------------- | -------------------- |
+| [quick_start](examples/quick_start/)         | Basic query          |
+| [streaming_mode](examples/streaming_mode/)   | Interactive client   |
+| [mcp_sdk_server](examples/mcp_sdk_server/)   | Custom tools         |
+| [hooks](examples/hooks/)                     | Hook system          |
 | [tool_permission](examples/tool_permission/) | Permission callbacks |
-| [agents](examples/agents/) | Custom agents |
+| [agents](examples/agents/)                   | Custom agents        |
 
 ## Contributing
 
@@ -338,4 +352,3 @@ go vet ./...
 
 - [Claude Code Documentation](https://code.claude.com/docs/en) — Claude Code docs
 - [MCP Specification](https://modelcontextprotocol.io/) — Model Context Protocol
-- [Anthropic API](https://docs.anthropic.com/) — Anthropic API documentation

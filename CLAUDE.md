@@ -56,3 +56,20 @@
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimat Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+## Code Standards
+
+- **Format Before Commit**: Always run `go fmt ./...` and `goimports -w .` before committing
+- **Complete Comments**: All exported functions, types, and methods must have complete Go doc comments with description, parameters, return values, and examples where applicable
+- **English Only**: All code comments, commit messages, and documentation must be in English
+
+## Commit Rules
+
+- **No Co-Authors**: Commit messages must NOT include `Co-Authored-By` lines
+- **English Only**: All commit messages, comments, and documentation must be in English
+- **Conventional Commits**: Use conventional commit format (`type: description`)
+
+## Prohibitions
+
+- **No Auto PRs**: Do NOT create pull requests automatically. Wait for explicit user instruction.
+- **No Auto Commits**: Do NOT commit code automatically. Stage changes and wait for user to review and commit explicitly.
