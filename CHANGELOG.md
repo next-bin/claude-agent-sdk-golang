@@ -2,41 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v0.1.59] - 2026-04-13
-
-### Added
-- **Transport Middleware** - New middleware system for intercepting transport operations
-  - `TransportMiddleware` interface with `InterceptWrite` and `InterceptRead` methods
-  - `MiddlewareTransport` wrapper for applying middleware chain
-  - `LoggingMiddleware` for logging write/read operations
-  - `MetricsMiddleware` for collecting operation counts
-- **Functional Options** - New option package for flexible configuration
-  - `option.RequestConfig` for holding configuration
-  - `option.RequestOption` functional option type
-  - 20+ WithXXX option functions for all configuration fields
-- `CLIVersion` constant in root package for bundled CLI version tracking
-
-### Fixed
-- Nil pointer dereference in `buildConversationChain` (sessions.go:1196,1209)
-- Race condition in `pendingControlResponses` handling (query.go:266-280)
-- Missing content-replacement handling in `ForkSession`
-
-### Changed
-- **Package Renames** - Internal packages renamed to avoid naming conflicts
-  - `internal/query` → `internal/queryimpl`
-  - `internal/transport` → `internal/transportimpl`
-- Added complete Go doc comments for `client.New()` function
-
-### Documentation
-- Updated README.md with Middleware and Functional Options sections
-- Updated README-zh.md with corresponding Chinese documentation
-- Added middleware and functional options examples
-
-### Tests
-- Added `transport/transport_test.go` with middleware tests
-- Added `option/option_test.go` with functional options tests
-
-## [v0.1.58] - 2026-04-12
+## [v0.1.58] - 2026-04-13
 
 ### Added
 - `GetContextUsage()` method on Client for context window usage breakdown by category
@@ -52,6 +18,38 @@ All notable changes to this project will be documented in this file.
 - Transport support for `--system-prompt-file` CLI argument
 - E2E tests for session mutations (DeleteSession, ForkSession)
 - Unit tests for sessions mutations (ForkSession, DeleteSession, Unicode sanitization)
+- **Transport Middleware** - New middleware system for intercepting transport operations
+  - `TransportMiddleware` interface with `InterceptWrite` and `InterceptRead` methods
+  - `MiddlewareTransport` wrapper for applying middleware chain
+  - `LoggingMiddleware` for logging write/read operations
+  - `MetricsMiddleware` for collecting operation counts
+- **Functional Options** - New option package for flexible configuration
+  - `option.RequestConfig` for holding configuration
+  - `option.RequestOption` functional option type
+  - 20+ WithXXX option functions for all configuration fields
+- `CLIVersion` constant in root package for bundled CLI version tracking
+
+### Fixed
+- Nil pointer dereference in `buildConversationChain` (sessions.go:1196,1209)
+- Race condition in `pendingControlResponses` handling (queryimpl/query.go:266-280)
+- Missing content-replacement handling in `ForkSession`
+
+### Changed
+- **Package Renames** - Internal packages renamed to avoid naming conflicts
+  - `internal/query` → `internal/queryimpl`
+  - `internal/transport` → `internal/transportimpl`
+- Added complete Go doc comments for `client.New()` function
+
+### Documentation
+- Updated README.md with Middleware and Functional Options sections
+- Updated README-zh.md with corresponding Chinese documentation
+- Updated CLAUDE.md with API patterns for middleware and functional options
+- Added middleware and functional options examples
+
+### Tests
+- Added `transport/transport_test.go` with middleware tests
+- Added `option/option_test.go` with functional options tests
+- Added `integration_test.go` for cross-package integration tests
 
 ## [v0.1.50] - 2026-03-23
 
