@@ -524,8 +524,8 @@ func TestServerHandleInitialize(t *testing.T) {
 	}
 
 	protocolVersion, ok := result["protocolVersion"].(string)
-	if !ok || protocolVersion != "2024-11-05" {
-		t.Errorf("Expected protocolVersion '2024-11-05', got '%v'", result["protocolVersion"])
+	if !ok || protocolVersion != "2025-11-25" {
+		t.Errorf("Expected protocolVersion '2025-11-25', got '%v'", result["protocolVersion"])
 	}
 
 	serverInfo, ok := result["serverInfo"].(map[string]interface{})

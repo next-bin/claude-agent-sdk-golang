@@ -96,6 +96,14 @@ type AgentDefinition struct {
 	Skills     []string               `json:"skills,omitempty"`
 	Memory     *string                `json:"memory,omitempty"` // "user", "project", or "local"
 	McpServers []McpServerRefOrConfig `json:"mcpServers,omitempty"`
+
+	// Additional fields matching Python SDK (v0.1.58)
+	InitialPrompt   *string         `json:"initial_prompt,omitempty"`   // Initial prompt for the agent
+	MaxTurns        *int            `json:"max_turns,omitempty"`        // Maximum turns for the agent
+	Background      *bool           `json:"background,omitempty"`       // Run agent in background
+	PermissionMode  *PermissionMode `json:"permission_mode,omitempty"`  // Permission mode for the agent
+	DisallowedTools []string        `json:"disallowed_tools,omitempty"` // Tools to disallow for the agent
+	Effort          interface{}     `json:"effort,omitempty"`           // "low", "medium", "high", "max", or int
 }
 
 // McpServerRefOrConfig represents either a server name reference or an inline config.
@@ -1266,6 +1274,9 @@ type ClaudeAgentOptions struct {
 	// its remaining token budget so it can pace tool use and wrap up before
 	// the limit.
 	TaskBudget *TaskBudget `json:"task_budget,omitempty"`
+
+	// Session ID to resume or continue a specific session
+	SessionID *string `json:"session_id,omitempty"`
 }
 
 // ============================================================================
@@ -1643,4 +1654,81 @@ type ContextUsageResponse struct {
 type ForkSessionResult struct {
 	// SessionID is the UUID of the new forked session.
 	SessionID string `json:"session_id"`
+}
+
+// ============================================================================
+// MCP Elicitation Types (2025-11-25 Specification)
+// ============================================================================
+
+// ElicitationMode represents the mode of elicitation.
+type ElicitationMode string
+
+const (
+	ElicitationModeForm ElicitationMode = "form"
+	ElicitationModeURL  ElicitationMode = "url"
+)
+
+// ElicitationAction represents the user's action in response to an elicitation.
+type ElicitationAction string
+
+const (
+	ElicitationActionAccept  ElicitationAction = "accept"
+	ElicitationActionDecline ElicitationAction = "decline"
+	ElicitationActionCancel  ElicitationAction = "cancel"
+)
+
+// ElicitationRequest represents a request for user information.
+type ElicitationRequest struct {
+	// Mode is the elicitation mode ("form" or "url").
+	Mode ElicitationMode `json:"mode,omitempty"`
+	// Message explains why the interaction is needed.
+	Message string `json:"message"`
+	// RequestedSchema defines the expected response structure (form mode).
+	RequestedSchema map[string]interface{} `json:"requestedSchema,omitempty"`
+	// URL for out-of-band interaction (URL mode).
+	URL string `json:"url,omitempty"`
+	// ElicitationID is a unique identifier for the elicitation (URL mode).
+	ElicitationID string `json:"elicitationId,omitempty"`
+}
+
+// ElicitationResponse represents the user's response to an elicitation request.
+type ElicitationResponse struct {
+	// Action is the user's action ("accept", "decline", or "cancel").
+	Action ElicitationAction `json:"action"`
+	// Content contains the submitted data (form mode, action=accept).
+	Content map[string]interface{} `json:"content,omitempty"`
+}
+
+// ElicitationCompleteNotification is sent when a URL mode elicitation completes.
+type ElicitationCompleteNotification struct {
+	// ElicitationID references the original elicitation request.
+	ElicitationID string `json:"elicitationId"`
+}
+
+// URLElicitationError represents an error requiring URL elicitation.
+type URLElicitationError struct {
+	// Code is always -32042.
+	Code int `json:"code"`
+	// Message is a human-readable description.
+	Message string `json:"message"`
+	// Data contains the elicitation details.
+	Data URLElicitationErrorData `json:"data"`
+}
+
+// URLElicitationErrorData contains the elicitation references.
+type URLElicitationErrorData struct {
+	// Elicitations is the list of required elicitations.
+	Elicitations []ElicitationRef `json:"elicitations"`
+}
+
+// ElicitationRef references a required elicitation.
+type ElicitationRef struct {
+	// Mode is always "url".
+	Mode ElicitationMode `json:"mode"`
+	// ElicitationID is the elicitation identifier.
+	ElicitationID string `json:"elicitationId"`
+	// URL is the URL the user should navigate to.
+	URL string `json:"url"`
+	// Message explains what the user needs to do.
+	Message string `json:"message"`
 }

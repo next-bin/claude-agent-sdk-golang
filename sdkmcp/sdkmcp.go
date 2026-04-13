@@ -556,6 +556,18 @@ type SdkMcpServerImpl struct {
 	tools   []*SdkMcpTool
 	// toolMap provides quick lookup by name
 	toolMap map[string]*SdkMcpTool
+
+	// MCP 2025-11-25 Resources support
+	resources         []*SdkMcpResource
+	resourceMap       map[string]*SdkMcpResource
+	resourceTemplates []*SdkMcpResourceTemplate
+
+	// MCP 2025-11-25 Prompts support
+	prompts   []*SdkMcpPrompt
+	promptMap map[string]*SdkMcpPrompt
+
+	// MCP Logging support
+	logLevel LogLevel
 }
 
 // ServerOption is a function that modifies an SdkMcpServerImpl during creation.
@@ -589,10 +601,12 @@ func WithServerVersion(version string) ServerOption {
 //	}, sdkmcp.WithServerVersion("2.0.0"))
 func CreateSdkMcpServer(name string, tools []*SdkMcpTool, opts ...ServerOption) *SdkMcpServerImpl {
 	s := &SdkMcpServerImpl{
-		name:    name,
-		version: "1.0.0",
-		tools:   tools,
-		toolMap: make(map[string]*SdkMcpTool),
+		name:        name,
+		version:     "1.0.0",
+		tools:       tools,
+		toolMap:     make(map[string]*SdkMcpTool),
+		resourceMap: make(map[string]*SdkMcpResource),
+		promptMap:   make(map[string]*SdkMcpPrompt),
 	}
 
 	// Build tool map
@@ -628,9 +642,21 @@ func (s *SdkMcpServerImpl) HandleRequest(ctx context.Context, method string, par
 		return s.handleToolsList(ctx, params)
 	case "tools/call":
 		return s.handleToolsCall(ctx, params)
+	case "resources/list":
+		return s.handleResourcesList(ctx, params)
+	case "resources/read":
+		return s.handleResourcesRead(ctx, params)
+	case "resources/templates/list":
+		return s.handleResourceTemplatesList(ctx, params)
+	case "prompts/list":
+		return s.handlePromptsList(ctx, params)
+	case "prompts/get":
+		return s.handlePromptsGet(ctx, params)
 	case "notifications/initialized":
 		// No response needed for notifications
 		return map[string]interface{}{}, nil
+	case "logging/setLevel":
+		return s.handleLoggingSetLevel(ctx, params)
 	default:
 		return nil, fmt.Errorf("unsupported method: %s", method)
 	}
@@ -638,11 +664,32 @@ func (s *SdkMcpServerImpl) HandleRequest(ctx context.Context, method string, par
 
 // handleInitialize handles the initialize request.
 func (s *SdkMcpServerImpl) handleInitialize(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	capabilities := map[string]interface{}{
+		"tools": map[string]interface{}{},
+	}
+
+	// Add resources capability if resources are defined
+	if len(s.resources) > 0 || len(s.resourceTemplates) > 0 {
+		resources := map[string]interface{}{}
+		if len(s.resourceTemplates) > 0 {
+			resources["templates"] = map[string]interface{}{}
+		}
+		capabilities["resources"] = resources
+	}
+
+	// Add Prompts capability if prompts are defined
+	if len(s.prompts) > 0 {
+		capabilities["prompts"] = map[string]interface{}{
+			"listChanged": false,
+		}
+	}
+
+	// Add Logging capability
+	capabilities["logging"] = map[string]interface{}{}
+
 	return map[string]interface{}{
-		"protocolVersion": "2024-11-05",
-		"capabilities": map[string]interface{}{
-			"tools": map[string]interface{}{},
-		},
+		"protocolVersion": "2025-11-25",
+		"capabilities":    capabilities,
 		"serverInfo": map[string]interface{}{
 			"name":    s.name,
 			"version": s.version,
@@ -739,3 +786,353 @@ func (s *SdkMcpServerImpl) handleToolsCall(ctx context.Context, params map[strin
 func (s *SdkMcpServerImpl) GetTools() []*SdkMcpTool {
 	return s.tools
 }
+
+// ============================================================================
+// MCP Resources Handlers (2025-11-25 Specification)
+// ============================================================================
+
+// handleResourcesList returns the list of available resources.
+func (s *SdkMcpServerImpl) handleResourcesList(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	if len(s.resources) == 0 {
+		return map[string]interface{}{"resources": []interface{}{}}, nil
+	}
+
+	resources := make([]map[string]interface{}, len(s.resources))
+	for i, r := range s.resources {
+		resources[i] = map[string]interface{}{
+			"uri":         r.URI,
+			"name":        r.Name,
+			"description": r.Description,
+			"mimeType":    r.MimeType,
+		}
+	}
+	return map[string]interface{}{"resources": resources}, nil
+}
+
+// handleResourcesRead returns the content of a specific resource.
+func (s *SdkMcpServerImpl) handleResourcesRead(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	uri, ok := params["uri"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing resource URI")
+	}
+
+	resource, exists := s.resourceMap[uri]
+	if !exists {
+		return nil, fmt.Errorf("unknown resource: %s", uri)
+	}
+
+	contents := []map[string]interface{}{}
+	if resource.Text != "" {
+		contents = append(contents, map[string]interface{}{
+			"type":     "text",
+			"text":     resource.Text,
+			"mimeType": resource.MimeType,
+		})
+	}
+	if resource.Blob != "" {
+		contents = append(contents, map[string]interface{}{
+			"type":     "blob",
+			"blob":     resource.Blob,
+			"mimeType": resource.MimeType,
+		})
+	}
+
+	return map[string]interface{}{
+		"contents": contents,
+	}, nil
+}
+
+// handleResourceTemplatesList returns the list of resource templates.
+func (s *SdkMcpServerImpl) handleResourceTemplatesList(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	if len(s.resourceTemplates) == 0 {
+		return map[string]interface{}{"resourceTemplates": []interface{}{}}, nil
+	}
+
+	templates := make([]map[string]interface{}, len(s.resourceTemplates))
+	for i, t := range s.resourceTemplates {
+		templates[i] = map[string]interface{}{
+			"uriTemplate": t.URITemplate,
+			"name":        t.Name,
+			"description": t.Description,
+			"mimeType":    t.MimeType,
+		}
+	}
+	return map[string]interface{}{"resourceTemplates": templates}, nil
+}
+
+// ============================================================================
+// MCP Prompts Handlers (2025-11-25 Specification)
+// ============================================================================
+
+// handlePromptsList returns the list of available prompts.
+func (s *SdkMcpServerImpl) handlePromptsList(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	if len(s.prompts) == 0 {
+		return map[string]interface{}{"prompts": []interface{}{}}, nil
+	}
+
+	prompts := make([]map[string]interface{}, len(s.prompts))
+	for i, p := range s.prompts {
+		prompts[i] = map[string]interface{}{
+			"name":        p.Name,
+			"description": p.Description,
+			"arguments":   p.Arguments,
+		}
+	}
+	return map[string]interface{}{"prompts": prompts}, nil
+}
+
+// handlePromptsGet returns a prompt template with resolved arguments.
+func (s *SdkMcpServerImpl) handlePromptsGet(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	name, ok := params["name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing prompt name")
+	}
+
+	prompt, exists := s.promptMap[name]
+	if !exists {
+		return nil, fmt.Errorf("unknown prompt: %s", name)
+	}
+
+	// Apply arguments to prompt messages
+	args, _ := params["arguments"].(map[string]interface{})
+	messages := make([]map[string]interface{}, len(prompt.Messages))
+	for i, msg := range prompt.Messages {
+		text := msg.Content.Text
+		// Simple variable substitution
+		for k, v := range args {
+			text = replaceVar(text, k, v)
+		}
+		messages[i] = map[string]interface{}{
+			"role":    msg.Role,
+			"content": map[string]interface{}{"type": "text", "text": text},
+		}
+	}
+
+	return map[string]interface{}{
+		"description": prompt.Description,
+		"messages":    messages,
+	}, nil
+}
+
+// replaceVar performs simple variable substitution.
+func replaceVar(text, key string, value interface{}) string {
+	template := "{{" + key + "}}"
+	return textReplaceAll(text, template, fmt.Sprintf("%v", value))
+}
+
+// textReplaceAll replaces all occurrences of old in text with new.
+func textReplaceAll(text, old, new string) string {
+	result := ""
+	for i := 0; i < len(text); {
+		if i+len(old) <= len(text) && text[i:i+len(old)] == old {
+			result += new
+			i += len(old)
+		} else {
+			result += string(text[i])
+			i++
+		}
+	}
+	return result
+}
+
+// ============================================================================
+// MCP Logging Handler (2025-11-25 Specification)
+// ============================================================================
+
+// handleLoggingSetLevel sets the server's minimum log level.
+func (s *SdkMcpServerImpl) handleLoggingSetLevel(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	level, ok := params["level"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing log level")
+	}
+
+	s.logLevel = LogLevel(level)
+	return map[string]interface{}{}, nil
+}
+
+// ============================================================================
+// MCP Resources (2025-11-25 Specification)
+// ============================================================================
+
+// SdkMcpResource represents an MCP resource that provides context/data.
+type SdkMcpResource struct {
+	// URI is the unique identifier for the resource.
+	URI string `json:"uri"`
+	// Name is a human-readable name for the resource.
+	Name string `json:"name"`
+	// Description is a human-readable description.
+	Description string `json:"description,omitempty"`
+	// MimeType is the MIME type of the resource content.
+	MimeType string `json:"mimeType,omitempty"`
+	// Text content for text-based resources.
+	Text string `json:"text,omitempty"`
+	// Blob content (base64-encoded) for binary resources.
+	Blob string `json:"blob,omitempty"`
+}
+
+// SdkMcpResourceTemplate represents a URI template for dynamic resources.
+type SdkMcpResourceTemplate struct {
+	// URITemplate is a URI template for matching resource requests.
+	URITemplate string `json:"uriTemplate"`
+	// Name is a human-readable name for the template.
+	Name string `json:"name"`
+	// Description is a human-readable description.
+	Description string `json:"description,omitempty"`
+	// MimeType is the MIME type for resources matching this template.
+	MimeType string `json:"mimeType,omitempty"`
+}
+
+// Resource creates a new SdkMcpResource with the given configuration.
+func Resource(uri, name, mimeType, content string) *SdkMcpResource {
+	return &SdkMcpResource{
+		URI:      uri,
+		Name:     name,
+		MimeType: mimeType,
+		Text:     content,
+	}
+}
+
+// BinaryResource creates a new SdkMcpResource with binary content (base64-encoded).
+func BinaryResource(uri, name, mimeType, blob string) *SdkMcpResource {
+	return &SdkMcpResource{
+		URI:      uri,
+		Name:     name,
+		MimeType: mimeType,
+		Blob:     blob,
+	}
+}
+
+// ResourceTemplate creates a new SdkMcpResourceTemplate.
+func ResourceTemplate(uriTemplate, name, mimeType string) *SdkMcpResourceTemplate {
+	return &SdkMcpResourceTemplate{
+		URITemplate: uriTemplate,
+		Name:        name,
+		MimeType:    mimeType,
+	}
+}
+
+// WithResources adds resources to the server.
+func WithResources(resources ...*SdkMcpResource) ServerOption {
+	return func(s *SdkMcpServerImpl) {
+		for _, r := range resources {
+			s.resources = append(s.resources, r)
+			s.resourceMap[r.URI] = r
+		}
+	}
+}
+
+// WithResourceTemplates adds resource templates to the server.
+func WithResourceTemplates(templates ...*SdkMcpResourceTemplate) ServerOption {
+	return func(s *SdkMcpServerImpl) {
+		s.resourceTemplates = append(s.resourceTemplates, templates...)
+	}
+}
+
+// ============================================================================
+// MCP Prompts (2025-11-25 Specification)
+// ============================================================================
+
+// SdkMcpPrompt represents an MCP prompt template.
+type SdkMcpPrompt struct {
+	// Name is the unique identifier for the prompt.
+	Name string `json:"name"`
+	// Description is a human-readable description.
+	Description string `json:"description,omitempty"`
+	// Arguments defines the parameters the prompt accepts.
+	Arguments []PromptArgument `json:"arguments,omitempty"`
+	// Messages contains the prompt messages to return.
+	Messages []PromptMessage `json:"messages,omitempty"`
+}
+
+// PromptArgument defines an argument that a prompt accepts.
+type PromptArgument struct {
+	// Name is the argument name.
+	Name string `json:"name"`
+	// Description is a human-readable description.
+	Description string `json:"description,omitempty"`
+	// Required indicates whether the argument is required.
+	Required bool `json:"required,omitempty"`
+}
+
+// PromptMessage represents a message in a prompt template.
+type PromptMessage struct {
+	// Role is the message role (user, assistant, system).
+	Role string `json:"role"`
+	// Content contains the message content.
+	Content PromptContent `json:"content"`
+}
+
+// PromptContent represents the content of a prompt message.
+type PromptContent struct {
+	// Type is the content type (text, image, resource).
+	Type string `json:"type"`
+	// Text is the text content (for type="text").
+	Text string `json:"text,omitempty"`
+}
+
+// Prompt creates a new SdkMcpPrompt with the given configuration.
+func Prompt(name, description string) *SdkMcpPrompt {
+	return &SdkMcpPrompt{
+		Name:        name,
+		Description: description,
+	}
+}
+
+// WithArgument adds an argument to the prompt.
+func (p *SdkMcpPrompt) WithArgument(name, description string, required bool) *SdkMcpPrompt {
+	p.Arguments = append(p.Arguments, PromptArgument{
+		Name:        name,
+		Description: description,
+		Required:    required,
+	})
+	return p
+}
+
+// WithMessage adds a message to the prompt.
+func (p *SdkMcpPrompt) WithMessage(role, text string) *SdkMcpPrompt {
+	p.Messages = append(p.Messages, PromptMessage{
+		Role:    role,
+		Content: PromptContent{Type: "text", Text: text},
+	})
+	return p
+}
+
+// WithPrompts adds prompts to the server.
+func WithPrompts(prompts ...*SdkMcpPrompt) ServerOption {
+	return func(s *SdkMcpServerImpl) {
+		for _, p := range prompts {
+			s.prompts = append(s.prompts, p)
+			s.promptMap[p.Name] = p
+		}
+	}
+}
+
+// ============================================================================
+// MCP Logging (2025-11-25 Specification)
+// ============================================================================
+
+// LogLevel represents the severity of a log message.
+type LogLevel string
+
+const (
+	LogLevelDebug     LogLevel = "debug"
+	LogLevelInfo      LogLevel = "info"
+	LogLevelNotice    LogLevel = "notice"
+	LogLevelWarning   LogLevel = "warning"
+	LogLevelError     LogLevel = "error"
+	LogLevelCritical  LogLevel = "critical"
+	LogLevelAlert     LogLevel = "alert"
+	LogLevelEmergency LogLevel = "emergency"
+	LogLevelFatal     LogLevel = "fatal"
+)
+
+// WithLogLevel sets the server's log level.
+func WithLogLevel(level LogLevel) ServerOption {
+	return func(s *SdkMcpServerImpl) {
+		s.logLevel = level
+	}
+}
+
+// ============================================================================
+// Server Creation (Updated)
+// ============================================================================

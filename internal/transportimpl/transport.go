@@ -364,6 +364,10 @@ func (t *SubprocessCLITransport) buildCommand() []string {
 		cmd = append(cmd, "--fallback-model", *t.options.FallbackModel)
 	}
 
+	if t.options.SessionID != nil && *t.options.SessionID != "" {
+		cmd = append(cmd, "--session-id", *t.options.SessionID)
+	}
+
 	if len(t.options.Betas) > 0 {
 		betas := make([]string, len(t.options.Betas))
 		for i, b := range t.options.Betas {
@@ -511,32 +515,37 @@ func (t *SubprocessCLITransport) buildCommand() []string {
 		}
 	}
 
-	// Resolve thinking config -> --max-thinking-tokens
+	// Resolve thinking config -> --thinking and --max-thinking-tokens
 	// `thinking` takes precedence over the deprecated `max_thinking_tokens`
 	resolvedMaxThinkingTokens := t.options.MaxThinkingTokens
 	if t.options.Thinking != nil {
 		switch v := t.options.Thinking.(type) {
 		case types.ThinkingConfigAdaptive:
+			cmd = append(cmd, "--thinking", "adaptive")
 			if resolvedMaxThinkingTokens == nil {
 				val := 32000
 				resolvedMaxThinkingTokens = &val
 			}
 		case types.ThinkingConfigEnabled:
+			cmd = append(cmd, "--thinking", "enabled")
 			resolvedMaxThinkingTokens = &v.BudgetTokens
 		case types.ThinkingConfigDisabled:
+			cmd = append(cmd, "--thinking", "disabled")
 			val := 0
 			resolvedMaxThinkingTokens = &val
 		default:
 			// Handle generic ThinkingConfig interface by checking GetType()
-			if resolvedMaxThinkingTokens == nil {
-				switch t.options.Thinking.GetType() {
-				case "adaptive":
+			switch t.options.Thinking.GetType() {
+			case "adaptive":
+				cmd = append(cmd, "--thinking", "adaptive")
+				if resolvedMaxThinkingTokens == nil {
 					val := 32000
 					resolvedMaxThinkingTokens = &val
-				case "disabled":
-					val := 0
-					resolvedMaxThinkingTokens = &val
 				}
+			case "disabled":
+				cmd = append(cmd, "--thinking", "disabled")
+				val := 0
+				resolvedMaxThinkingTokens = &val
 			}
 		}
 	}
