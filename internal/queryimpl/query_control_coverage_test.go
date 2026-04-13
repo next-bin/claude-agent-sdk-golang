@@ -423,6 +423,78 @@ func TestGetContextUsage_ErrorResponse(t *testing.T) {
 	_ = q.Close(ctx)
 }
 
+// TestGetContextUsage_WithComplexData tests parsing of complex context usage data.
+func TestGetContextUsage_WithComplexData(t *testing.T) {
+	mockTransport := newControlMockTransport()
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+
+	ctx := context.Background()
+	_ = q.Start(ctx)
+	time.Sleep(10 * time.Millisecond)
+
+	var resp types.ContextUsageResponse
+	var err error
+	done := make(chan struct{})
+
+	go func() {
+		resp, err = q.GetContextUsage(ctx)
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	writes := mockTransport.getWriteCalls()
+	if len(writes) > 0 {
+		reqID := extractRequestID(writes[len(writes)-1])
+		// Send response with nested complex data
+		sendSuccessResponse(mockTransport, reqID, map[string]interface{}{
+			"totalTokens":          10000,
+			"maxTokens":            200000,
+			"percentage":           5.0,
+			"model":                "claude-3-opus",
+			"isAutoCompactEnabled": true,
+			"categories": []interface{}{
+				map[string]interface{}{
+					"name":   "messages",
+					"tokens": 5000,
+					"color":  "#FF5733",
+				},
+			},
+			"memoryFiles": []interface{}{
+				map[string]interface{}{
+					"path": "/memory/file1.txt",
+					"size": 1024,
+				},
+			},
+			"mcpTools": []interface{}{
+				map[string]interface{}{
+					"name":    "tool1",
+					"enabled": true,
+				},
+			},
+			"gridRows": []interface{}{
+				[]interface{}{map[string]interface{}{"col1": "val1"}},
+			},
+		})
+	}
+
+	select {
+	case <-done:
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if resp.TotalTokens != 10000 {
+			t.Errorf("TotalTokens = %d, want 10000", resp.TotalTokens)
+		}
+		if len(resp.Categories) != 1 {
+			t.Errorf("Categories count = %d, want 1", len(resp.Categories))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	_ = q.Close(ctx)
+}
+
 // ============================================================================
 // Interrupt Tests
 // ============================================================================

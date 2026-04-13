@@ -25,48 +25,89 @@ func main() {
 	ctx, cancel := internal.SetupSignalContext()
 	defer cancel()
 
-	// Note: The SDK requires the Claude CLI to be installed.
-	// This example shows the API structure. Actual usage requires:
-	// 1. Install Claude CLI: npm install -g @anthropic-ai/claude-code
-	// 2. Authenticate: claude login
-	// 3. Run this program
-
+	fmt.Println("This example demonstrates using max_budget_usd to control API costs.\n")
 	fmt.Println("=== Budget and Turn Limiting Example ===")
 	fmt.Println()
 
-	// Example 1: Using MaxBudgetUSD to limit cost
-	fmt.Println("--- Example 1: MaxBudgetUSD ---")
-	runWithBudgetLimit(ctx)
+	// Example 1: Using MaxBudgetUSD without limit (demonstration)
+	fmt.Println("--- Example 1: Without Budget Limit ---")
+	runWithoutBudgetLimit(ctx)
 
 	fmt.Println()
 	fmt.Println(strings.Repeat("-", 50))
 	fmt.Println()
 
-	// Example 2: Using MaxTurns to limit agent turns
-	fmt.Println("--- Example 2: MaxTurns ---")
+	// Example 2: Using MaxBudgetUSD with reasonable budget
+	fmt.Println("--- Example 2: With Reasonable Budget ($0.10) ---")
+	runWithReasonableBudget(ctx)
+
+	fmt.Println()
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println()
+
+	// Example 3: Using MaxBudgetUSD with tight budget that will likely be exceeded
+	fmt.Println("--- Example 3: With Tight Budget ($0.0001) ---")
+	runWithTightBudget(ctx)
+
+	fmt.Println()
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println()
+
+	// Example 4: Using MaxTurns to limit agent turns
+	fmt.Println("--- Example 4: MaxTurns ---")
 	runWithTurnLimit(ctx)
 
 	fmt.Println()
 	fmt.Println(strings.Repeat("-", 50))
 	fmt.Println()
 
-	// Example 3: Using both MaxBudgetUSD and MaxTurns together
-	fmt.Println("--- Example 3: Combined Budget and Turn Limits ---")
+	// Example 5: Using both MaxBudgetUSD and MaxTurns together
+	fmt.Println("--- Example 5: Combined Budget and Turn Limits ---")
 	runWithCombinedLimits(ctx)
 
 	fmt.Println()
 	fmt.Println(strings.Repeat("-", 50))
 	fmt.Println()
 
-	// Example 4: Tracking cost over multiple queries
-	fmt.Println("--- Example 4: Cost Tracking Over Session ---")
+	// Example 6: Tracking cost over multiple queries
+	fmt.Println("--- Example 6: Cost Tracking Over Session ---")
 	runSessionWithCostTracking(ctx)
+
+	fmt.Println()
+	fmt.Println(
+		"\nNote: Budget checking happens after each API call completes,\n" +
+			"so the final cost may slightly exceed the specified budget.\n")
 }
 
-// runWithBudgetLimit demonstrates using MaxBudgetUSD option.
-func runWithBudgetLimit(ctx context.Context) {
-	// Set a maximum budget of $0.05 for this query
-	maxBudget := 0.05
+// runWithoutBudgetLimit demonstrates query without budget limit.
+func runWithoutBudgetLimit(ctx context.Context) {
+	options := &types.ClaudeAgentOptions{}
+
+	c := client.NewWithOptions(options)
+	defer c.Close()
+
+	if err := c.Connect(ctx); err != nil {
+		handleError(err)
+		return
+	}
+
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
+	fmt.Println("Query: What is 2 + 2?")
+
+	if err := c.Query(ctx, "What is 2 + 2?"); err != nil {
+		handleError(err)
+		return
+	}
+
+	processMessages(msgChan)
+}
+
+// runWithReasonableBudget demonstrates using MaxBudgetUSD with reasonable budget.
+func runWithReasonableBudget(ctx context.Context) {
+	// Set a reasonable budget of $0.10 - plenty for a simple query
+	maxBudget := 0.10
 
 	options := &types.ClaudeAgentOptions{
 		MaxBudgetUSD: &maxBudget,
@@ -84,14 +125,45 @@ func runWithBudgetLimit(ctx context.Context) {
 	msgChan := c.ReceiveMessages(ctx)
 
 	fmt.Printf("Max Budget set to: $%.2f\n", maxBudget)
-	fmt.Println("Query: What is the capital of France?")
+	fmt.Println("Query: What is 2 + 2?")
 
-	if err := c.Query(ctx, "What is the capital of France?"); err != nil {
+	if err := c.Query(ctx, "What is 2 + 2?"); err != nil {
 		handleError(err)
 		return
 	}
 
 	processMessages(msgChan)
+}
+
+// runWithTightBudget demonstrates using very tight budget that will likely be exceeded.
+func runWithTightBudget(ctx context.Context) {
+	// Set a very small budget - will be exceeded quickly
+	maxBudget := 0.0001
+
+	options := &types.ClaudeAgentOptions{
+		MaxBudgetUSD: &maxBudget,
+	}
+
+	c := client.NewWithOptions(options)
+	defer c.Close()
+
+	if err := c.Connect(ctx); err != nil {
+		handleError(err)
+		return
+	}
+
+	// Create message channel once and reuse for all queries
+	msgChan := c.ReceiveMessages(ctx)
+
+	fmt.Printf("Max Budget set to: $%.4f (very tight)\n", maxBudget)
+	fmt.Println("Query: Read the README.md file and summarize it")
+
+	if err := c.Query(ctx, "Read the README.md file and summarize it"); err != nil {
+		handleError(err)
+		return
+	}
+
+	processMessagesWithBudgetCheck(msgChan, maxBudget)
 }
 
 // runWithTurnLimit demonstrates using MaxTurns option.
@@ -197,6 +269,31 @@ func runSessionWithCostTracking(ctx context.Context) {
 	fmt.Println("=== Session Summary ===")
 	fmt.Printf("Total Cost: $%.6f\n", totalCost)
 	fmt.Printf("Total Turns: %d\n", totalTurns)
+}
+
+// processMessagesWithBudgetCheck handles messages and checks if budget was exceeded.
+func processMessagesWithBudgetCheck(msgChan <-chan types.Message, maxBudget float64) {
+	for msg := range msgChan {
+		switch m := msg.(type) {
+		case *types.AssistantMessage:
+			for _, block := range m.Content {
+				if tb, ok := block.(types.TextBlock); ok {
+					fmt.Printf("Claude: %s\n", tb.Text)
+				}
+			}
+		case *types.ResultMessage:
+			printResultMessage(m)
+
+			// Check if budget was exceeded
+			if m.Subtype == "error_max_budget_usd" {
+				fmt.Println("\n⚠️  Budget limit exceeded!")
+				fmt.Println("Note: The cost may exceed the budget by up to one API call's worth")
+			} else if m.TotalCostUSD != nil && *m.TotalCostUSD > maxBudget {
+				fmt.Printf("\n⚠️  Cost ($%.6f) exceeded budget ($%.4f)\n", *m.TotalCostUSD, maxBudget)
+			}
+			return
+		}
+	}
 }
 
 // processMessages handles incoming messages and prints the result.
