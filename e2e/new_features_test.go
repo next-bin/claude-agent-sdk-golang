@@ -85,7 +85,7 @@ func TestGetContextUsage(t *testing.T) {
 		t.Log("Warning: No context usage categories returned")
 	}
 
-	PrintTestSummary(t, "TestGetContextUsage", err == nil && usage.TotalTokens > 0, count, time.Since(startTime))
+	PrintTestSummary(t, "TestGetContextUsage", usage.TotalTokens > 0, count, time.Since(startTime))
 }
 
 // TestGetContextUsageFields tests specific fields of ContextUsageResponse.

@@ -191,6 +191,12 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		}
 	}
 
+	// Extract excludeDynamicSections from system prompt preset
+	var excludeDynamicSections *bool
+	if preset, ok := c.options.SystemPrompt.(types.SystemPromptPreset); ok && preset.ExcludeDynamicSections != nil {
+		excludeDynamicSections = preset.ExcludeDynamicSections
+	}
+
 	// Convert hooks to internal format
 	var hooks map[string][]queryimpl.HookMatcher
 	if c.options.Hooks != nil {
@@ -214,6 +220,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		sdkMcpServers,
 		initializeTimeout,
 		agentsDict,
+		excludeDynamicSections,
 	)
 
 	// Start reading messages and initialize

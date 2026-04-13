@@ -25,7 +25,7 @@ func main() {
 	ctx, cancel := internal.SetupSignalContext()
 	defer cancel()
 
-	fmt.Println("This example demonstrates using max_budget_usd to control API costs.\n")
+	fmt.Println("This example demonstrates using max_budget_usd to control API costs.")
 	fmt.Println("=== Budget and Turn Limiting Example ===")
 	fmt.Println()
 
@@ -74,9 +74,8 @@ func main() {
 	runSessionWithCostTracking(ctx)
 
 	fmt.Println()
-	fmt.Println(
-		"\nNote: Budget checking happens after each API call completes,\n" +
-			"so the final cost may slightly exceed the specified budget.\n")
+	fmt.Println("Note: Budget checking happens after each API call completes,")
+	fmt.Println("so the final cost may slightly exceed the specified budget.")
 }
 
 // runWithoutBudgetLimit demonstrates query without budget limit.

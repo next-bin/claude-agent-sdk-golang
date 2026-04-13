@@ -3,24 +3,48 @@ package e2e_tests
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/next-bin/claude-agent-sdk-golang"
 )
 
-func TestDeleteSession(t *testing.T) {
-	SkipIfNoAPIKey(t)
+// sanitizePathForTest replicates the sessions package's sanitizePath logic.
+// This ensures tests create files in the correct project directory.
+var sanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
-	// Create a temporary project directory
-	tmpDir := t.TempDir()
-	projectsDir := filepath.Join(tmpDir, ".claude", "projects", "test-project")
-	if err := os.MkdirAll(projectsDir, 0755); err != nil {
+func sanitizePathForTest(name string) string {
+	return sanitizeRegex.ReplaceAllString(name, "-")
+}
+
+// setupTestProject creates the project directory structure and returns the project dir.
+func setupTestProject(t *testing.T) (tmpDir, configDir, projectDir string) {
+	t.Helper()
+	tmpDir = t.TempDir()
+	configDir = filepath.Join(tmpDir, ".claude")
+	projectsDir := filepath.Join(configDir, "projects")
+	projectName := sanitizePathForTest(tmpDir)
+	projectDir = filepath.Join(projectsDir, projectName)
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
 		t.Fatalf("Failed to create projects dir: %v", err)
 	}
 
+	// Set CLAUDE_CONFIG_DIR
+	oldConfigDir := os.Getenv("CLAUDE_CONFIG_DIR")
+	t.Cleanup(func() { os.Setenv("CLAUDE_CONFIG_DIR", oldConfigDir) })
+	os.Setenv("CLAUDE_CONFIG_DIR", configDir)
+
+	return tmpDir, configDir, projectDir
+}
+
+func TestDeleteSession(t *testing.T) {
+	SkipIfNoAPIKey(t)
+
+	tmpDir, _, projectDir := setupTestProject(t)
+
 	// Create a fake session file
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
-	sessionFile := filepath.Join(projectsDir, sessionID+".jsonl")
+	sessionFile := filepath.Join(projectDir, sessionID+".jsonl")
 	content := `{"type":"user","uuid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"user","content":"Hello"}}
 {"type":"assistant","uuid":"b1b2c3d4-e5f6-7890-abcd-ef1234567890","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"assistant","content":[{"type":"text","text":"Hi!"}]}}
 `
@@ -32,11 +56,6 @@ func TestDeleteSession(t *testing.T) {
 	if _, err := os.Stat(sessionFile); os.IsNotExist(err) {
 		t.Fatal("Session file should exist before delete")
 	}
-
-	// Override CLAUDE_CONFIG_DIR for test
-	oldConfigDir := os.Getenv("CLAUDE_CONFIG_DIR")
-	os.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(tmpDir, ".claude"))
-	defer os.Setenv("CLAUDE_CONFIG_DIR", oldConfigDir)
 
 	// Delete the session
 	err := claude.DeleteSession(sessionID, tmpDir)
@@ -63,27 +82,17 @@ func TestDeleteSessionNotFound(t *testing.T) {
 func TestForkSession(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	// Create a temporary project directory
-	tmpDir := t.TempDir()
-	projectsDir := filepath.Join(tmpDir, ".claude", "projects", "test-project")
-	if err := os.MkdirAll(projectsDir, 0755); err != nil {
-		t.Fatalf("Failed to create projects dir: %v", err)
-	}
+	tmpDir, _, projectDir := setupTestProject(t)
 
 	// Create a fake session file
 	sessionID := "550e8400-e29b-41d4-a716-446655440000"
-	sessionFile := filepath.Join(projectsDir, sessionID+".jsonl")
+	sessionFile := filepath.Join(projectDir, sessionID+".jsonl")
 	content := `{"type":"user","uuid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"user","content":"Hello"}}
 {"type":"assistant","uuid":"b1b2c3d4-e5f6-7890-abcd-ef1234567890","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"assistant","content":[{"type":"text","text":"Hi!"}]}}
 `
 	if err := os.WriteFile(sessionFile, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to create session file: %v", err)
 	}
-
-	// Override CLAUDE_CONFIG_DIR for test
-	oldConfigDir := os.Getenv("CLAUDE_CONFIG_DIR")
-	os.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(tmpDir, ".claude"))
-	defer os.Setenv("CLAUDE_CONFIG_DIR", oldConfigDir)
 
 	// Fork the session
 	result, err := claude.ForkSession(sessionID, tmpDir, nil, nil)
@@ -99,7 +108,7 @@ func TestForkSession(t *testing.T) {
 		t.Fatal("Forked session ID should be different from original")
 	}
 
-	forkedFile := filepath.Join(projectsDir, result.SessionID+".jsonl")
+	forkedFile := filepath.Join(projectDir, result.SessionID+".jsonl")
 	if _, err := os.Stat(forkedFile); os.IsNotExist(err) {
 		t.Fatalf("Forked session file should exist: %s", forkedFile)
 	}
@@ -113,27 +122,17 @@ func TestForkSession(t *testing.T) {
 func TestForkSessionWithCustomTitle(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
-	// Create a temporary project directory
-	tmpDir := t.TempDir()
-	projectsDir := filepath.Join(tmpDir, ".claude", "projects", "test-project")
-	if err := os.MkdirAll(projectsDir, 0755); err != nil {
-		t.Fatalf("Failed to create projects dir: %v", err)
-	}
+	tmpDir, _, projectDir := setupTestProject(t)
 
 	// Create a fake session file
 	sessionID := "660e8400-e29b-41d4-a716-446655440001"
-	sessionFile := filepath.Join(projectsDir, sessionID+".jsonl")
+	sessionFile := filepath.Join(projectDir, sessionID+".jsonl")
 	content := `{"type":"user","uuid":"c1d2e3f4-a5b6-7890-abcd-ef1234567891","sessionId":"660e8400-e29b-41d4-a716-446655440001","message":{"role":"user","content":"Test"}}
 {"type":"custom-title","customTitle":"Original Session","sessionId":"660e8400-e29b-41d4-a716-446655440001"}
 `
 	if err := os.WriteFile(sessionFile, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to create session file: %v", err)
 	}
-
-	// Override CLAUDE_CONFIG_DIR for test
-	oldConfigDir := os.Getenv("CLAUDE_CONFIG_DIR")
-	os.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(tmpDir, ".claude"))
-	defer os.Setenv("CLAUDE_CONFIG_DIR", oldConfigDir)
 
 	// Fork with custom title
 	title := "My Forked Session"
@@ -143,7 +142,7 @@ func TestForkSessionWithCustomTitle(t *testing.T) {
 	}
 
 	// Read the forked file and verify title
-	forkedFile := filepath.Join(projectsDir, result.SessionID+".jsonl")
+	forkedFile := filepath.Join(projectDir, result.SessionID+".jsonl")
 	forkedContent, err := os.ReadFile(forkedFile)
 	if err != nil {
 		t.Fatalf("Failed to read forked session: %v", err)

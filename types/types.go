@@ -65,6 +65,18 @@ type SystemPromptPreset struct {
 	Type   string  `json:"type"`             // Always "preset"
 	Preset string  `json:"preset"`           // Always "claude_code"
 	Append *string `json:"append,omitempty"` // Optional append text
+
+	// ExcludeDynamicSections strips per-user dynamic sections (working directory,
+	// auto-memory, git status) from the system prompt so it stays static and
+	// cacheable across users. The stripped content is re-injected into the first
+	// user message so the model still has access to it.
+	//
+	// Use this when many users share the same preset system prompt and you
+	// want the prompt-caching prefix to hit cross-user.
+	//
+	// Requires a Claude Code CLI version that supports this option; older
+	// CLIs silently ignore it.
+	ExcludeDynamicSections *bool `json:"exclude_dynamic_sections,omitempty"`
 }
 
 // ToolsPreset represents a tools preset configuration.

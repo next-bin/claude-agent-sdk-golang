@@ -777,3 +777,335 @@ func TestMultipleTools(t *testing.T) {
 		}
 	}
 }
+
+// ============================================================================
+// MCP Resources Tests (2025-11-25 Specification)
+// ============================================================================
+
+func TestResource(t *testing.T) {
+	r := Resource("file:///test.txt", "Test File", "text/plain", "Hello, World!")
+	if r.URI != "file:///test.txt" {
+		t.Errorf("Expected URI 'file:///test.txt', got '%s'", r.URI)
+	}
+	if r.Name != "Test File" {
+		t.Errorf("Expected Name 'Test File', got '%s'", r.Name)
+	}
+	if r.MimeType != "text/plain" {
+		t.Errorf("Expected MimeType 'text/plain', got '%s'", r.MimeType)
+	}
+	if r.Text != "Hello, World!" {
+		t.Errorf("Expected Text 'Hello, World!', got '%s'", r.Text)
+	}
+}
+
+func TestBinaryResource(t *testing.T) {
+	r := BinaryResource("file:///test.bin", "Binary", "application/octet-stream", "YWJj")
+	if r.URI != "file:///test.bin" {
+		t.Errorf("URI mismatch")
+	}
+	if r.Blob != "YWJj" {
+		t.Errorf("Blob mismatch")
+	}
+}
+
+func TestResourceTemplate(t *testing.T) {
+	rt := ResourceTemplate("file:///{name}", "Template", "text/plain")
+	if rt.URITemplate != "file:///{name}" {
+		t.Errorf("URITemplate mismatch")
+	}
+}
+
+func TestServerWithResources(t *testing.T) {
+	res := Resource("file:///test.txt", "Test", "text/plain", "content")
+	server := CreateSdkMcpServer("test", nil, WithResources(res))
+
+	ctx := context.Background()
+
+	// Test initialize includes resources capability
+	result, err := server.HandleRequest(ctx, "initialize", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	capabilities := result["capabilities"].(map[string]interface{})
+	if _, ok := capabilities["resources"]; !ok {
+		t.Error("Expected 'resources' capability")
+	}
+}
+
+func TestServerHandleResourcesList(t *testing.T) {
+	res := Resource("file:///test.txt", "Test", "text/plain", "content")
+	server := CreateSdkMcpServer("test", nil, WithResources(res))
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "resources/list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	resources := result["resources"].([]map[string]interface{})
+	if len(resources) != 1 {
+		t.Fatalf("Expected 1 resource, got %d", len(resources))
+	}
+	if resources[0]["uri"] != "file:///test.txt" {
+		t.Errorf("URI mismatch")
+	}
+	if resources[0]["name"] != "Test" {
+		t.Errorf("Name mismatch")
+	}
+}
+
+func TestServerHandleResourcesRead(t *testing.T) {
+	res := Resource("file:///test.txt", "Test", "text/plain", "Hello!")
+	server := CreateSdkMcpServer("test", nil, WithResources(res))
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "resources/read", map[string]interface{}{
+		"uri": "file:///test.txt",
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	contents := result["contents"].([]map[string]interface{})
+	if len(contents) != 1 {
+		t.Fatalf("Expected 1 content, got %d", len(contents))
+	}
+	if contents[0]["text"] != "Hello!" {
+		t.Errorf("Expected text 'Hello!', got '%s'", contents[0]["text"])
+	}
+}
+
+func TestServerHandleResourcesReadNotFound(t *testing.T) {
+	server := CreateSdkMcpServer("test", nil)
+
+	ctx := context.Background()
+	_, err := server.HandleRequest(ctx, "resources/read", map[string]interface{}{
+		"uri": "file:///nonexistent.txt",
+	})
+	if err == nil {
+		t.Error("Expected error for nonexistent resource")
+	}
+}
+
+func TestServerHandleResourceTemplatesList(t *testing.T) {
+	rt := ResourceTemplate("file:///{name}", "Template", "text/plain")
+	server := CreateSdkMcpServer("test", nil, WithResourceTemplates(rt))
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "resources/templates/list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	templates := result["resourceTemplates"].([]map[string]interface{})
+	if len(templates) != 1 {
+		t.Fatalf("Expected 1 template, got %d", len(templates))
+	}
+	if templates[0]["uriTemplate"] != "file:///{name}" {
+		t.Errorf("URITemplate mismatch")
+	}
+}
+
+// ============================================================================
+// MCP Prompts Tests (2025-11-25 Specification)
+// ============================================================================
+
+func TestPromptBuilder(t *testing.T) {
+	p := Prompt("greet", "Greet a user").
+		WithArgument("name", "User name", true).
+		WithMessage("user", "Hello, {{name}}!")
+
+	if p.Name != "greet" {
+		t.Errorf("Name mismatch")
+	}
+	if len(p.Arguments) != 1 {
+		t.Fatalf("Expected 1 argument, got %d", len(p.Arguments))
+	}
+	if p.Arguments[0].Name != "name" {
+		t.Errorf("Argument name mismatch")
+	}
+	if !p.Arguments[0].Required {
+		t.Error("Argument should be required")
+	}
+	if len(p.Messages) != 1 {
+		t.Fatalf("Expected 1 message, got %d", len(p.Messages))
+	}
+}
+
+func TestServerWithPrompts(t *testing.T) {
+	p := Prompt("greet", "Greeting prompt").
+		WithArgument("name", "User name", true).
+		WithMessage("user", "Hello, {{name}}!")
+
+	server := CreateSdkMcpServer("test", nil, WithPrompts(p))
+
+	ctx := context.Background()
+
+	// Test initialize includes prompts capability
+	result, err := server.HandleRequest(ctx, "initialize", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	capabilities := result["capabilities"].(map[string]interface{})
+	if _, ok := capabilities["prompts"]; !ok {
+		t.Error("Expected 'prompts' capability")
+	}
+}
+
+func TestServerHandlePromptsList(t *testing.T) {
+	p := Prompt("greet", "Greeting prompt").
+		WithArgument("name", "User name", true).
+		WithMessage("user", "Hello, {{name}}!")
+
+	server := CreateSdkMcpServer("test", nil, WithPrompts(p))
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "prompts/list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	prompts := result["prompts"].([]map[string]interface{})
+	if len(prompts) != 1 {
+		t.Fatalf("Expected 1 prompt, got %d", len(prompts))
+	}
+	if prompts[0]["name"] != "greet" {
+		t.Errorf("Name mismatch")
+	}
+}
+
+func TestServerHandlePromptsGet(t *testing.T) {
+	p := Prompt("greet", "Greeting prompt").
+		WithArgument("name", "User name", true).
+		WithMessage("user", "Hello, {{name}}!")
+
+	server := CreateSdkMcpServer("test", nil, WithPrompts(p))
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "prompts/get", map[string]interface{}{
+		"name":      "greet",
+		"arguments": map[string]interface{}{"name": "Alice"},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	messages := result["messages"].([]map[string]interface{})
+	if len(messages) != 1 {
+		t.Fatalf("Expected 1 message, got %d", len(messages))
+	}
+	content := messages[0]["content"].(map[string]interface{})
+	if content["text"] != "Hello, Alice!" {
+		t.Errorf("Expected 'Hello, Alice!', got '%s'", content["text"])
+	}
+}
+
+func TestServerHandlePromptsGetNotFound(t *testing.T) {
+	server := CreateSdkMcpServer("test", nil)
+
+	ctx := context.Background()
+	_, err := server.HandleRequest(ctx, "prompts/get", map[string]interface{}{
+		"name": "nonexistent",
+	})
+	if err == nil {
+		t.Error("Expected error for nonexistent prompt")
+	}
+}
+
+// ============================================================================
+// MCP Logging Tests (2025-11-25 Specification)
+// ============================================================================
+
+func TestLogLevelConstants(t *testing.T) {
+	expected := []LogLevel{
+		LogLevelDebug, LogLevelInfo, LogLevelNotice, LogLevelWarning,
+		LogLevelError, LogLevelCritical, LogLevelAlert, LogLevelEmergency,
+		LogLevelFatal,
+	}
+	for _, level := range expected {
+		if level == "" {
+			t.Errorf("LogLevel should not be empty")
+		}
+	}
+}
+
+func TestServerWithLogLevel(t *testing.T) {
+	server := CreateSdkMcpServer("test", nil, WithLogLevel(LogLevelWarning))
+	if server.logLevel != LogLevelWarning {
+		t.Errorf("Expected LogLevel 'warning', got '%s'", server.logLevel)
+	}
+}
+
+func TestServerHandleLoggingSetLevel(t *testing.T) {
+	server := CreateSdkMcpServer("test", nil)
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "logging/setLevel", map[string]interface{}{
+		"level": "error",
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if server.logLevel != LogLevelError {
+		t.Errorf("Expected server log level to be 'error'")
+	}
+
+	// Result should be empty map
+	if len(result) != 0 {
+		t.Errorf("Expected empty result, got %v", result)
+	}
+}
+
+// ============================================================================
+// Combined Server Capabilities Tests
+// ============================================================================
+
+func TestServerWithAllCapabilities(t *testing.T) {
+	tool := Tool("echo", "Echo", SimpleSchema(map[string]string{"msg": "string"}),
+		func(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+			return TextResult(args["msg"].(string)), nil
+		})
+
+	res := Resource("file:///config.json", "Config", "application/json", "{}")
+
+	prompt := Prompt("help", "Help prompt").
+		WithMessage("assistant", "How can I help?")
+
+	server := CreateSdkMcpServer("full_server", []*SdkMcpTool{tool},
+		WithResources(res),
+		WithPrompts(prompt),
+		WithServerVersion("2.0.0"),
+		WithLogLevel(LogLevelInfo),
+	)
+
+	ctx := context.Background()
+	result, err := server.HandleRequest(ctx, "initialize", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	capabilities := result["capabilities"].(map[string]interface{})
+
+	// Verify all capabilities
+	if _, ok := capabilities["tools"]; !ok {
+		t.Error("Missing 'tools' capability")
+	}
+	if _, ok := capabilities["resources"]; !ok {
+		t.Error("Missing 'resources' capability")
+	}
+	if _, ok := capabilities["prompts"]; !ok {
+		t.Error("Missing 'prompts' capability")
+	}
+	if _, ok := capabilities["logging"]; !ok {
+		t.Error("Missing 'logging' capability")
+	}
+
+	// Verify server info
+	serverInfo := result["serverInfo"].(map[string]interface{})
+	if serverInfo["name"] != "full_server" {
+		t.Errorf("Server name mismatch")
+	}
+	if serverInfo["version"] != "2.0.0" {
+		t.Errorf("Server version mismatch")
+	}
+}

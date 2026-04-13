@@ -64,7 +64,7 @@ func hasCommand(commands []string, name string) bool {
 func exampleDefault(ctx context.Context) error {
 	fmt.Println("=== Default Behavior Example ===")
 	fmt.Println("Setting sources: None (default)")
-	fmt.Println("Expected: No custom slash commands will be available\n")
+	fmt.Println("Expected: No custom slash commands will be available")
 
 	options := &types.ClaudeAgentOptions{}
 
@@ -107,7 +107,7 @@ func exampleDefault(ctx context.Context) error {
 func exampleUserOnly(ctx context.Context) error {
 	fmt.Println("=== User Settings Only Example ===")
 	fmt.Println("Setting sources: ['user']")
-	fmt.Println("Expected: Project slash commands (like /commit) will NOT be available\n")
+	fmt.Println("Expected: Project slash commands (like /commit) will NOT be available")
 
 	options := &types.ClaudeAgentOptions{
 		SettingSources: []types.SettingSource{types.SettingSourceUser},
@@ -152,7 +152,7 @@ func exampleUserOnly(ctx context.Context) error {
 func exampleProjectAndUser(ctx context.Context) error {
 	fmt.Println("=== Project + User Settings Example ===")
 	fmt.Println("Setting sources: ['user', 'project']")
-	fmt.Println("Expected: Project slash commands (like /commit) WILL be available\n")
+	fmt.Println("Expected: Project slash commands (like /commit) WILL be available")
 
 	options := &types.ClaudeAgentOptions{
 		SettingSources: []types.SettingSource{types.SettingSourceUser, types.SettingSourceProject},

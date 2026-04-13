@@ -229,6 +229,7 @@ func TestNewQuery(t *testing.T) {
 				tt.sdkMcpServers,
 				tt.initializeTimeout,
 				tt.agents,
+				nil,
 			)
 
 			if q == nil {
@@ -337,6 +338,7 @@ func TestSendControlRequest(t *testing.T) {
 				nil,
 				30*time.Second,
 				nil,
+				nil,
 			)
 
 			// Create context with timeout
@@ -389,6 +391,7 @@ func TestSendControlRequestWithResponse(t *testing.T) {
 		nil,
 		nil,
 		30*time.Second,
+		nil,
 		nil,
 	)
 
@@ -574,7 +577,7 @@ func TestHandleToolPermissionRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTransport := newMockTransport()
-			q := NewQuery(mockTransport, true, tt.canUseTool, nil, nil, 30*time.Second, nil)
+			q := NewQuery(mockTransport, true, tt.canUseTool, nil, nil, 30*time.Second, nil, nil)
 
 			ctx := context.Background()
 			resp, err := q.handleToolPermissionRequest(ctx, "test-request-id", tt.requestData)
@@ -642,7 +645,7 @@ func TestHandleToolPermissionRequestInvalidResult(t *testing.T) {
 	}
 
 	mockTransport := newMockTransport()
-	q := NewQuery(mockTransport, true, canUseTool, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, canUseTool, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_, err := q.handleToolPermissionRequest(ctx, "test-id", map[string]interface{}{"tool_name": "Bash"})
@@ -752,7 +755,7 @@ func TestHandleHookCallbackRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTransport := newMockTransport()
-			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 			if tt.setupQuery != nil {
 				tt.setupQuery(q)
@@ -1031,7 +1034,7 @@ func TestHandleMCPMessageRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTransport := newMockTransport()
-			q := NewQuery(mockTransport, true, nil, nil, tt.sdkMcpServer, 30*time.Second, nil)
+			q := NewQuery(mockTransport, true, nil, nil, tt.sdkMcpServer, 30*time.Second, nil, nil)
 
 			ctx := context.Background()
 			resp, err := q.handleMCPMessageRequest(ctx, "test-request-id", tt.requestData)
@@ -1235,7 +1238,7 @@ func TestHandleControlRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTransport := newMockTransport()
-			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 			if tt.setupQuery != nil {
 				tt.setupQuery(q)
@@ -1412,7 +1415,7 @@ func TestParseDuration(t *testing.T) {
 // TestClose tests the Close method.
 func TestClose(t *testing.T) {
 	mockTransport := newMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	// Start the query
 	ctx := context.Background()
@@ -1441,7 +1444,7 @@ func TestClose(t *testing.T) {
 // TestIsClosed tests the isClosed method.
 func TestIsClosed(t *testing.T) {
 	mockTransport := newMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	if q.isClosed() {
 		t.Error("query should not be closed initially")
@@ -1457,7 +1460,7 @@ func TestIsClosed(t *testing.T) {
 // TestGetInitializationResult tests the GetInitializationResult method.
 func TestGetInitializationResult(t *testing.T) {
 	mockTransport := newMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	// Initially nil
 	if result := q.GetInitializationResult(); result != nil {
@@ -1569,7 +1572,7 @@ func ptrEqual[T comparable](a, b *T) bool {
 func TestStreamingMessageChannel(t *testing.T) {
 	t.Run("messages flow through channel", func(t *testing.T) {
 		mockTransport := newMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx := context.Background()
 		if err := q.Start(ctx); err != nil {
@@ -1611,7 +1614,7 @@ func TestStreamingMessageChannel(t *testing.T) {
 
 	t.Run("channel closes on end message", func(t *testing.T) {
 		mockTransport := newMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx := context.Background()
 		_ = q.Start(ctx)
@@ -1630,7 +1633,7 @@ func TestStreamingMessageChannel(t *testing.T) {
 
 	t.Run("channel handles error message", func(t *testing.T) {
 		mockTransport := newMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx := context.Background()
 		_ = q.Start(ctx)
@@ -1663,7 +1666,7 @@ func TestStreamingMessageChannel(t *testing.T) {
 func TestConcurrentStreaming(t *testing.T) {
 	t.Run("concurrent send and receive", func(t *testing.T) {
 		mockTransport := newMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx := context.Background()
 		_ = q.Start(ctx)
@@ -1721,7 +1724,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	t.Run("concurrent initialize and close", func(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			mockTransport := newMockTransport()
-			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 			var wg sync.WaitGroup
 			wg.Add(2)
@@ -1755,7 +1758,7 @@ func TestConcurrentStreaming(t *testing.T) {
 func TestStreamInputChannelClosure(t *testing.T) {
 	t.Run("closes transport on stream end", func(t *testing.T) {
 		mockTransport := newMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx := context.Background()
 		_ = q.Start(ctx)
@@ -1787,7 +1790,7 @@ func TestStreamInputChannelClosure(t *testing.T) {
 			}}}},
 		}
 
-		q := NewQuery(mockTransport, true, nil, hooks, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, hooks, nil, 30*time.Second, nil, nil)
 
 		ctx := context.Background()
 		_ = q.Start(ctx)
@@ -1829,7 +1832,7 @@ func TestStreamInputChannelClosure(t *testing.T) {
 func TestReceiveMessagesChannelClosure(t *testing.T) {
 	t.Run("channel closes on context cancel", func(t *testing.T) {
 		mockTransport := newMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		_ = q.Start(ctx)
@@ -1881,7 +1884,7 @@ func TestToolPermissionCallbackWithInputModification(t *testing.T) {
 		}, nil
 	}
 
-	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	request := map[string]interface{}{
@@ -1943,7 +1946,7 @@ func TestToolPermissionCallbackWithUpdatedPermissions(t *testing.T) {
 		}, nil
 	}
 
-	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	request := map[string]interface{}{
@@ -1987,7 +1990,7 @@ func TestToolPermissionCallbackDenyWithInterrupt(t *testing.T) {
 		}, nil
 	}
 
-	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	request := map[string]interface{}{
@@ -2029,7 +2032,7 @@ func TestToolPermissionCallbackExceptionHandling(t *testing.T) {
 		return nil, errors.New("callback error")
 	}
 
-	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	request := map[string]interface{}{
@@ -2068,7 +2071,7 @@ func TestToolPermissionCallbackWithSuggestions(t *testing.T) {
 		return types.PermissionResultAllow{Behavior: "allow"}, nil
 	}
 
-	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, callback, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	request := map[string]interface{}{
@@ -2101,7 +2104,7 @@ func TestToolPermissionCallbackMissing(t *testing.T) {
 	mockTransport := newMockTransport()
 
 	// No callback provided
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	request := map[string]interface{}{
@@ -2140,7 +2143,7 @@ func TestFirstResultEventSetOnEarlyExit(t *testing.T) {
 		}}}},
 	}
 
-	q := NewQuery(mockTransport, true, nil, hooks, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, hooks, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = q.Start(ctx)
@@ -2184,7 +2187,7 @@ func TestFirstResultEventSetOnEarlyExit(t *testing.T) {
 func TestFirstResultEventNotDoubleClose(t *testing.T) {
 	mockTransport := newMockTransport()
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)

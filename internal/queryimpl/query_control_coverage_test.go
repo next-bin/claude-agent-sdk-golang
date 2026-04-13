@@ -83,10 +83,6 @@ func (m *controlMockTransport) sendMessage(msg map[string]interface{}) {
 	m.messages <- msg
 }
 
-func (m *controlMockTransport) closeMessages() {
-	close(m.messages)
-}
-
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -134,7 +130,7 @@ func sendErrorResponse(mock *controlMockTransport, requestID string, errMsg stri
 
 func TestGetMCPStatus_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_, err := q.GetMCPStatus(ctx)
@@ -151,7 +147,7 @@ func TestGetMCPStatus_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("write failed")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_, err := q.GetMCPStatus(ctx)
@@ -166,7 +162,7 @@ func TestGetMCPStatus_WriteError(t *testing.T) {
 
 func TestGetMCPStatus_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -199,7 +195,7 @@ func TestGetMCPStatus_RequestFormat(t *testing.T) {
 
 func TestGetMCPStatus_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -240,7 +236,7 @@ func TestGetMCPStatus_Success(t *testing.T) {
 
 func TestGetMCPStatus_ErrorResponse(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -282,7 +278,7 @@ func TestGetMCPStatus_ErrorResponse(t *testing.T) {
 
 func TestGetContextUsage_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_, err := q.GetContextUsage(ctx)
@@ -299,7 +295,7 @@ func TestGetContextUsage_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("write failed")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_, err := q.GetContextUsage(ctx)
@@ -314,7 +310,7 @@ func TestGetContextUsage_WriteError(t *testing.T) {
 
 func TestGetContextUsage_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -343,7 +339,7 @@ func TestGetContextUsage_RequestFormat(t *testing.T) {
 
 func TestGetContextUsage_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -390,7 +386,7 @@ func TestGetContextUsage_Success(t *testing.T) {
 
 func TestGetContextUsage_ErrorResponse(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -426,7 +422,7 @@ func TestGetContextUsage_ErrorResponse(t *testing.T) {
 // TestGetContextUsage_WithComplexData tests parsing of complex context usage data.
 func TestGetContextUsage_WithComplexData(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -501,7 +497,7 @@ func TestGetContextUsage_WithComplexData(t *testing.T) {
 
 func TestInterrupt_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.Interrupt(ctx)
@@ -518,7 +514,7 @@ func TestInterrupt_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("connection closed")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.Interrupt(ctx)
@@ -533,7 +529,7 @@ func TestInterrupt_WriteError(t *testing.T) {
 
 func TestInterrupt_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -562,7 +558,7 @@ func TestInterrupt_RequestFormat(t *testing.T) {
 
 func TestInterrupt_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -601,7 +597,7 @@ func TestInterrupt_Success(t *testing.T) {
 
 func TestSetPermissionMode_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.SetPermissionMode(ctx, "plan")
@@ -618,7 +614,7 @@ func TestSetPermissionMode_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("write failed")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.SetPermissionMode(ctx, "acceptEdits")
@@ -633,7 +629,7 @@ func TestSetPermissionMode_WriteError(t *testing.T) {
 
 func TestSetPermissionMode_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -665,7 +661,7 @@ func TestSetPermissionMode_RequestFormat(t *testing.T) {
 
 func TestSetPermissionMode_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -704,7 +700,7 @@ func TestSetPermissionMode_WithDifferentModes(t *testing.T) {
 	for _, mode := range modes {
 		t.Run("mode_"+mode, func(t *testing.T) {
 			mockTransport := newControlMockTransport()
-			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+			q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 			defer cancel()
@@ -738,7 +734,7 @@ func TestSetPermissionMode_WithDifferentModes(t *testing.T) {
 
 func TestSetModel_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.SetModel(ctx, "claude-sonnet")
@@ -755,7 +751,7 @@ func TestSetModel_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("connection lost")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.SetModel(ctx, "claude-sonnet")
@@ -770,7 +766,7 @@ func TestSetModel_WriteError(t *testing.T) {
 
 func TestSetModel_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -802,7 +798,7 @@ func TestSetModel_RequestFormat(t *testing.T) {
 
 func TestSetModel_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -841,7 +837,7 @@ func TestSetModel_Success(t *testing.T) {
 
 func TestRewindFiles_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.RewindFiles(ctx, "msg-123")
@@ -858,7 +854,7 @@ func TestRewindFiles_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("write failed")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.RewindFiles(ctx, "msg-123")
@@ -873,7 +869,7 @@ func TestRewindFiles_WriteError(t *testing.T) {
 
 func TestRewindFiles_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -905,7 +901,7 @@ func TestRewindFiles_RequestFormat(t *testing.T) {
 
 func TestRewindFiles_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -940,7 +936,7 @@ func TestRewindFiles_Success(t *testing.T) {
 
 func TestRewindFiles_ErrorResponse(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -982,7 +978,7 @@ func TestRewindFiles_ErrorResponse(t *testing.T) {
 
 func TestReconnectMCPServer_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.ReconnectMCPServer(ctx, "filesystem")
@@ -999,7 +995,7 @@ func TestReconnectMCPServer_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("connection error")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.ReconnectMCPServer(ctx, "filesystem")
@@ -1014,7 +1010,7 @@ func TestReconnectMCPServer_WriteError(t *testing.T) {
 
 func TestReconnectMCPServer_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -1046,7 +1042,7 @@ func TestReconnectMCPServer_RequestFormat(t *testing.T) {
 
 func TestReconnectMCPServer_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -1081,7 +1077,7 @@ func TestReconnectMCPServer_Success(t *testing.T) {
 
 func TestReconnectMCPServer_ErrorResponse(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -1120,7 +1116,7 @@ func TestReconnectMCPServer_ErrorResponse(t *testing.T) {
 
 func TestToggleMCPServer_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.ToggleMCPServer(ctx, "filesystem", true)
@@ -1137,7 +1133,7 @@ func TestToggleMCPServer_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("write error")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.ToggleMCPServer(ctx, "filesystem", true)
@@ -1152,7 +1148,7 @@ func TestToggleMCPServer_WriteError(t *testing.T) {
 
 func TestToggleMCPServer_RequestFormat_Enable(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -1187,7 +1183,7 @@ func TestToggleMCPServer_RequestFormat_Enable(t *testing.T) {
 
 func TestToggleMCPServer_RequestFormat_Disable(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -1216,7 +1212,7 @@ func TestToggleMCPServer_RequestFormat_Disable(t *testing.T) {
 
 func TestToggleMCPServer_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -1251,7 +1247,7 @@ func TestToggleMCPServer_Success(t *testing.T) {
 
 func TestToggleMCPServer_ErrorResponse(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -1290,7 +1286,7 @@ func TestToggleMCPServer_ErrorResponse(t *testing.T) {
 
 func TestStopTask_NonStreamingMode(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, false, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.StopTask(ctx, "task-123")
@@ -1307,7 +1303,7 @@ func TestStopTask_WriteError(t *testing.T) {
 	mockTransport := newControlMockTransport()
 	mockTransport.writeErr = errors.New("connection lost")
 
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	err := q.StopTask(ctx, "task-123")
@@ -1322,7 +1318,7 @@ func TestStopTask_WriteError(t *testing.T) {
 
 func TestStopTask_RequestFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -1354,7 +1350,7 @@ func TestStopTask_RequestFormat(t *testing.T) {
 
 func TestStopTask_Success(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -1389,7 +1385,7 @@ func TestStopTask_Success(t *testing.T) {
 
 func TestStopTask_ErrorResponse(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx := context.Background()
 	_ = q.Start(ctx)
@@ -1428,7 +1424,7 @@ func TestStopTask_ErrorResponse(t *testing.T) {
 
 func TestControlMethods_CancelledContext(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	// Pre-cancel the context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1508,7 +1504,7 @@ func TestControlRequestIDUniqueness(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		// Use a new mockTransport for each iteration to avoid accumulating writes
 		mockTransport := newControlMockTransport()
-		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+		q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		_ = q.Interrupt(ctx)
@@ -1537,7 +1533,7 @@ func TestControlRequestIDUniqueness(t *testing.T) {
 
 func TestControlRequestWriteFormat(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -1573,7 +1569,7 @@ func TestControlRequestWriteFormat(t *testing.T) {
 
 func TestControlMethods_EmptyParameters(t *testing.T) {
 	mockTransport := newControlMockTransport()
-	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil)
+	q := NewQuery(mockTransport, true, nil, nil, nil, 30*time.Second, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()

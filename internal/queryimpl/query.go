@@ -64,13 +64,14 @@ type McpServer interface {
 // - Message streaming
 // - Initialization handshake
 type Query struct {
-	transport         Transport
-	isStreamingMode   bool
-	canUseTool        CanUseToolCallback
-	hooks             map[string][]HookMatcher
-	sdkMcpServers     map[string]McpServer
-	agents            map[string]map[string]interface{}
-	initializeTimeout time.Duration
+	transport              Transport
+	isStreamingMode        bool
+	canUseTool             CanUseToolCallback
+	hooks                  map[string][]HookMatcher
+	sdkMcpServers          map[string]McpServer
+	agents                 map[string]map[string]interface{}
+	excludeDynamicSections *bool
+	initializeTimeout      time.Duration
 
 	// Control protocol state
 	pendingControlResponses map[string]*pendingResponse
@@ -114,6 +115,7 @@ func NewQuery(
 	sdkMcpServers map[string]McpServer,
 	initializeTimeout time.Duration,
 	agents map[string]map[string]interface{},
+	excludeDynamicSections *bool,
 ) *Query {
 	if initializeTimeout == 0 {
 		initializeTimeout = 60 * time.Second
@@ -134,6 +136,7 @@ func NewQuery(
 		hooks:                   hooks,
 		sdkMcpServers:           sdkMcpServers,
 		agents:                  agents,
+		excludeDynamicSections:  excludeDynamicSections,
 		initializeTimeout:       initializeTimeout,
 		pendingControlResponses: make(map[string]*pendingResponse),
 		pendingControlResults:   make(map[string]interface{}),
@@ -195,6 +198,9 @@ func (q *Query) Initialize(ctx context.Context) (map[string]interface{}, error) 
 	}
 	if q.agents != nil {
 		request["agents"] = q.agents
+	}
+	if q.excludeDynamicSections != nil {
+		request["excludeDynamicSections"] = *q.excludeDynamicSections
 	}
 
 	// Use longer timeout for initialize since MCP servers may take time to start
@@ -517,7 +523,7 @@ func (q *Query) handleSDKMCPRequest(ctx context.Context, serverName string, mess
 			"jsonrpc": "2.0",
 			"id":      msgID,
 			"result": map[string]interface{}{
-				"protocolVersion": "2024-11-05",
+				"protocolVersion": "2025-11-25",
 				"capabilities": map[string]interface{}{
 					"tools": map[string]interface{}{},
 				},
