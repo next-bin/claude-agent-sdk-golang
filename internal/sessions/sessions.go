@@ -583,19 +583,20 @@ func processPromptText(s string) string {
 	prevSpace := false
 
 	for _, r := range s {
-		if r == '\n' || r == '\r' {
+		switch r {
+		case '\n', '\r':
 			// Replace newlines with space
 			if !start && !prevSpace {
 				b.WriteRune(' ')
 				prevSpace = true
 			}
-		} else if r == ' ' || r == '\t' {
+		case ' ', '\t':
 			// Collapse multiple spaces/tabs
 			if !start && !prevSpace {
 				b.WriteRune(' ')
 				prevSpace = true
 			}
-		} else {
+		default:
 			// Regular character
 			b.WriteRune(r)
 			start = false
@@ -1525,7 +1526,11 @@ func tryAppend(path, data string) bool {
 // DeleteSession (v0.1.50)
 // ============================================================================
 
-// DeleteSession deletes a session file.
+// DeleteSession deletes a session file and its subagent transcript directory.
+//
+// This is a hard delete — the {session_id}.jsonl file is removed permanently,
+// along with the sibling {session_id}/ subdirectory that holds subagent
+// transcripts (if it exists).
 //
 // Parameters:
 //   - sessionID: UUID of the session to delete.
@@ -1549,7 +1554,7 @@ func DeleteSession(sessionID, directory string) error {
 		projectDir := findProjectDir(canonical)
 		if projectDir != "" {
 			filePath := filepath.Join(projectDir, fileName)
-			if tryDelete(filePath) {
+			if tryDeleteWithCascade(filePath, sessionID) {
 				return nil
 			}
 		}
@@ -1563,7 +1568,7 @@ func DeleteSession(sessionID, directory string) error {
 			wtProjectDir := findProjectDir(wt)
 			if wtProjectDir != "" {
 				filePath := filepath.Join(wtProjectDir, fileName)
-				if tryDelete(filePath) {
+				if tryDeleteWithCascade(filePath, sessionID) {
 					return nil
 				}
 			}
@@ -1581,7 +1586,7 @@ func DeleteSession(sessionID, directory string) error {
 
 	for _, entry := range dirents {
 		filePath := filepath.Join(projectsDir, entry.Name(), fileName)
-		if tryDelete(filePath) {
+		if tryDeleteWithCascade(filePath, sessionID) {
 			return nil
 		}
 	}
@@ -1589,11 +1594,55 @@ func DeleteSession(sessionID, directory string) error {
 	return fmt.Errorf("session %s not found in any project directory", sessionID)
 }
 
-// tryDelete tries to delete a session file.
+// tryDeleteWithCascade tries to delete a session file and its subagent transcript directory.
 // Returns true if deletion succeeded, false if file doesn't exist.
-func tryDelete(path string) bool {
+func tryDeleteWithCascade(path, sessionID string) bool {
 	err := os.Remove(path)
-	return err == nil
+	if err != nil {
+		return false
+	}
+
+	// Subagent transcripts live in a sibling {session_id}/ dir; often absent.
+	// Security: validate the subagent directory path to prevent path traversal attacks.
+	subagentDir := filepath.Join(filepath.Dir(path), sessionID)
+
+	// Security checks before deletion:
+	// 1. Verify sessionID is a valid UUID (prevents path injection)
+	if !isValidUUID(sessionID) {
+		return true // Session file deleted, skip subagent dir
+	}
+
+	// 2. Verify subagentDir is within ~/.claude/projects (no path traversal outside config dir)
+	projectsDir := getProjectsDir()
+	absSubagentDir, err := filepath.Abs(subagentDir)
+	if err != nil {
+		return true // Cannot resolve path, skip deletion
+	}
+	absProjectsDir, err := filepath.Abs(projectsDir)
+	if err != nil {
+		return true // Cannot resolve projects dir, skip deletion
+	}
+	// Ensure subagentDir is under projectsDir (no path traversal)
+	if !strings.HasPrefix(absSubagentDir, absProjectsDir+string(filepath.Separator)) {
+		return true // Path outside ~/.claude/projects, skip deletion
+	}
+
+	// 3. Verify subagentDir is within the same parent directory (no sibling traversal)
+	parentDir := filepath.Dir(path)
+	relPath, err := filepath.Rel(parentDir, subagentDir)
+	if err != nil || relPath != sessionID {
+		return true // Invalid path, skip deletion
+	}
+
+	// 4. Check if directory exists and is actually a directory
+	info, err := os.Stat(subagentDir)
+	if err != nil || !info.IsDir() {
+		return true // Not a directory or doesn't exist
+	}
+
+	// Safe to remove - matches upstream's shutil.rmtree(ignore_errors=True)
+	_ = os.RemoveAll(subagentDir)
+	return true
 }
 
 // ============================================================================

@@ -594,6 +594,84 @@ func TestDeleteSession_NoLongerInList(t *testing.T) {
 	}
 }
 
+// TestDeleteSession_CascadeSubagentDir tests that DeleteSession removes
+// the sibling {session_id}/ subdirectory that holds subagent transcripts.
+// This matches Python SDK v0.1.59 behavior: shutil.rmtree(path.parent / session_id, ignore_errors=True)
+func TestDeleteSession_CascadeSubagentDir(t *testing.T) {
+	configDir := setupTestConfig(t)
+	projectPath := "/test/project"
+	projectDir := makeProjectDir(configDir, projectPath)
+	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+	filePath := makeSessionFile(projectDir, sessionID, "Test")
+
+	// Create subagent transcript directory (sibling {session_id}/ dir)
+	subagentDir := filepath.Join(projectDir, sessionID)
+	if err := os.MkdirAll(subagentDir, 0755); err != nil {
+		t.Fatalf("Failed to create subagent dir: %v", err)
+	}
+
+	// Create a fake subagent transcript file inside the directory
+	subagentFile := filepath.Join(subagentDir, "660e8400-e29b-41d4-a716-446655440001.jsonl")
+	subagentContent := "{}\n"
+	if err := os.WriteFile(subagentFile, []byte(subagentContent), 0644); err != nil {
+		t.Fatalf("Failed to create subagent transcript file: %v", err)
+	}
+
+	// Verify files exist before delete
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		t.Fatal("Session file should exist before delete")
+	}
+	if _, err := os.Stat(subagentDir); os.IsNotExist(err) {
+		t.Fatal("Subagent dir should exist before delete")
+	}
+	if _, err := os.Stat(subagentFile); os.IsNotExist(err) {
+		t.Fatal("Subagent transcript file should exist before delete")
+	}
+
+	// Delete the session
+	err := DeleteSession(sessionID, projectPath)
+	if err != nil {
+		t.Fatalf("DeleteSession failed: %v", err)
+	}
+
+	// Verify session file is deleted
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Error("Session file should be deleted")
+	}
+
+	// Verify subagent directory is also deleted (cascade)
+	if _, err := os.Stat(subagentDir); !os.IsNotExist(err) {
+		t.Error("Subagent dir should be deleted (cascade)")
+	}
+}
+
+// TestDeleteSession_CascadeNoSubagentDir tests that DeleteSession works
+// correctly when there is no subagent transcript directory (most sessions).
+func TestDeleteSession_CascadeNoSubagentDir(t *testing.T) {
+	configDir := setupTestConfig(t)
+	projectPath := "/test/project"
+	projectDir := makeProjectDir(configDir, projectPath)
+	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+	filePath := makeSessionFile(projectDir, sessionID, "Test")
+
+	// Verify no subagent directory exists (normal case)
+	subagentDir := filepath.Join(projectDir, sessionID)
+	if _, err := os.Stat(subagentDir); !os.IsNotExist(err) {
+		t.Fatal("Test precondition: subagent dir should not exist")
+	}
+
+	// Delete the session
+	err := DeleteSession(sessionID, projectPath)
+	if err != nil {
+		t.Fatalf("DeleteSession failed: %v", err)
+	}
+
+	// Verify session file is deleted
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Error("Session file should be deleted")
+	}
+}
+
 // ============================================================================
 // ForkSession Tests
 // ============================================================================

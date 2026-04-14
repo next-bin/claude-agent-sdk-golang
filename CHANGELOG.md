@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.1.59] - 2026-04-14
+
+### Changed
+- `DeleteSession()` now cascades to subagent transcript directory
+  - Deletes the `{session_id}.jsonl` file and the sibling `{session_id}/` subdirectory
+  - Matches Python SDK v0.1.59 behavior: `shutil.rmtree(path.parent / session_id, ignore_errors=True)`
+- Updated bundled CLI version (2.1.104 → 2.1.107)
+
+### Tests
+- Added `TestDeleteSession_CascadeSubagentDir` unit test
+- Added `TestDeleteSession_CascadeNoSubagentDir` unit test
+- Added `TestDeleteSessionCascadeSubagentDir` e2e test
+
 ## [v0.1.58] - 2026-04-13
 
 ### Added
