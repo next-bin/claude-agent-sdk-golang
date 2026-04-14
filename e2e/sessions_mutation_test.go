@@ -79,6 +79,61 @@ func TestDeleteSessionNotFound(t *testing.T) {
 	}
 }
 
+// TestDeleteSessionCascadeSubagentDir tests that DeleteSession removes
+// the sibling {session_id}/ subdirectory that holds subagent transcripts.
+// This matches Python SDK v0.1.59 behavior.
+func TestDeleteSessionCascadeSubagentDir(t *testing.T) {
+	SkipIfNoAPIKey(t)
+
+	tmpDir, _, projectDir := setupTestProject(t)
+
+	// Create a fake session file
+	sessionID := "550e8400-e29b-41d4-a716-446655440000"
+	sessionFile := filepath.Join(projectDir, sessionID+".jsonl")
+	content := `{"type":"user","uuid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"user","content":"Hello"}}
+{"type":"assistant","uuid":"b1b2c3d4-e5f6-7890-abcd-ef1234567890","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"assistant","content":[{"type":"text","text":"Hi!"}]}}
+`
+	if err := os.WriteFile(sessionFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create session file: %v", err)
+	}
+
+	// Create subagent transcript directory (sibling {session_id}/ dir)
+	subagentDir := filepath.Join(projectDir, sessionID)
+	if err := os.MkdirAll(subagentDir, 0755); err != nil {
+		t.Fatalf("Failed to create subagent dir: %v", err)
+	}
+
+	// Create a fake subagent transcript file
+	subagentFile := filepath.Join(subagentDir, "660e8400-e29b-41d4-a716-446655440001.jsonl")
+	if err := os.WriteFile(subagentFile, []byte("{}\n"), 0644); err != nil {
+		t.Fatalf("Failed to create subagent transcript file: %v", err)
+	}
+
+	// Verify files exist
+	if _, err := os.Stat(sessionFile); os.IsNotExist(err) {
+		t.Fatal("Session file should exist before delete")
+	}
+	if _, err := os.Stat(subagentDir); os.IsNotExist(err) {
+		t.Fatal("Subagent dir should exist before delete")
+	}
+
+	// Delete the session
+	err := claude.DeleteSession(sessionID, tmpDir)
+	if err != nil {
+		t.Fatalf("DeleteSession failed: %v", err)
+	}
+
+	// Verify session file is deleted
+	if _, err := os.Stat(sessionFile); !os.IsNotExist(err) {
+		t.Fatal("Session file should be deleted after DeleteSession")
+	}
+
+	// Verify subagent directory is also deleted (cascade)
+	if _, err := os.Stat(subagentDir); !os.IsNotExist(err) {
+		t.Fatal("Subagent dir should be deleted (cascade) after DeleteSession")
+	}
+}
+
 func TestForkSession(t *testing.T) {
 	SkipIfNoAPIKey(t)
 
