@@ -231,7 +231,7 @@ func (c *Client) Connect(ctx context.Context, prompt ...interface{}) error {
 		return err
 	}
 
-	// Handle prompt input - send user message after initialize (matching upstream SDK behavior)
+	// Handle prompt input - send user message after initialize
 	if len(prompt) > 0 {
 		switch p := prompt[0].(type) {
 		case string:
@@ -622,7 +622,7 @@ func (c *Client) ReceiveMessages(ctx context.Context) <-chan types.Message {
 // Query returns an error if the client is not connected.
 //
 // Important: To receive responses, call ReceiveMessages() once before or after
-// Query and reuse the returned channel for all queries. This matches the upstream
+// Query and reuse the returned channel for all queries. This matches the standard
 // SDK pattern where query() only sends messages and receive_messages() is called
 // separately.
 func (c *Client) Query(ctx context.Context, prompt interface{}, sessionID ...string) error {

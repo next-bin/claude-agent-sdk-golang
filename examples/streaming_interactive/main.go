@@ -1,7 +1,7 @@
 // Example streaming_interactive demonstrates interactive streaming patterns with the Claude Agent SDK for Go.
 //
 // This example is designed for interactive use and quick experimentation,
-// similar to upstream's Iupstream-friendly snippets. Each function is self-contained
+// similar to standard's Istandard-friendly snippets. Each function is self-contained
 // and can be used as a reference for common patterns.
 //
 // The queries are intentionally simplistic. In reality, a query can be a more

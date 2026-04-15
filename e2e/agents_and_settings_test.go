@@ -105,7 +105,7 @@ func TestLargeAgents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(bgCtx, 120*time.Second)
 	defer cancel()
 
-	// Generate 20 agents with 13KB prompts each = ~260KB total (matching upstream SDK)
+	// Generate 20 agents with 13KB prompts each = ~260KB total (matching standard SDK)
 	t.Log("Generating 20 large agents (~260KB total)...")
 	agents := make(map[string]types.AgentDefinition)
 	for i := 0; i < 20; i++ {

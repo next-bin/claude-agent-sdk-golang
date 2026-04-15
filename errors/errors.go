@@ -147,7 +147,7 @@ type CLIJSONDecodeError struct {
 
 // Error implements the error interface.
 func (e *CLIJSONDecodeError) Error() string {
-	// Truncate line to 100 characters like upstream version
+	// Truncate line to 100 characters like standard version
 	line := e.Line
 	if len(line) > 100 {
 		line = line[:100]

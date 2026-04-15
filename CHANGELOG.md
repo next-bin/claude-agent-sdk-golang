@@ -2,12 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2026-04-15
+
+### Fixed
+- **Critical**: Thinking flag handling for `ThinkingConfigEnabled` type
+  - Removed incorrect `--thinking enabled` flag (should only use `--max-thinking-tokens`)
+  - Correct CLI mode selection: adaptive/disabled use `--thinking`, enabled uses only budget tokens
+
+### Added
+- Missing `ToolPermissionContext` fields for proper tool attribution
+  - `ToolUseID` field for unique tool call identification within assistant messages
+  - `AgentID` field for sub-agent context identification (present only in sub-agent scope)
+- Missing `AssistantMessage` fields for complete message data
+  - `MessageID` - Anthropic API message ID
+  - `StopReason` - Per-turn stop reason (end_turn, tool_use, etc.)
+  - `SessionID` - Session identifier
+  - `UUID` - SDK message UUID for transcript correlation
+- Missing `ResultMessage` fields for complete result data
+  - `ModelUsage` - Per-model usage breakdown (tokens, cost, context window)
+  - `PermissionDenials` - List of denied permission requests
+  - `Errors` - Error diagnostics from CLI
+  - `UUID` - SDK message UUID for transcript correlation
+
+### Changed
+- Updated version tracking to v0.1.59 (commit acd62ea)
+- Cleaned up documentation comments
+
 ## [v0.1.59] - 2026-04-14
 
 ### Changed
 - `DeleteSession()` now cascades to subagent transcript directory
   - Deletes the `{session_id}.jsonl` file and the sibling `{session_id}/` subdirectory
-  - Matches Python SDK v0.1.59 behavior: `shutil.rmtree(path.parent / session_id, ignore_errors=True)`
+  - Standard cascade delete behavior
 - Updated bundled CLI version (2.1.104 → 2.1.107)
 
 ### Tests

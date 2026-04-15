@@ -471,7 +471,7 @@ func (q *Query) handleHookCallbackRequest(ctx context.Context, requestID string,
 		return nil, err
 	}
 
-	// Convert upstream-safe field names (async_, continue_) to CLI-expected names (async, continue)
+	// Convert standard-safe field names (async_, continue_) to CLI-expected names (async, continue)
 	return convertHookOutputForCLI(hookOutput), nil
 }
 

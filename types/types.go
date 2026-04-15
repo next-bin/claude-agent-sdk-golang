@@ -109,7 +109,7 @@ type AgentDefinition struct {
 	Memory     *string                `json:"memory,omitempty"` // "user", "project", or "local"
 	McpServers []McpServerRefOrConfig `json:"mcpServers,omitempty"`
 
-	// Additional fields matching Python SDK (v0.1.58)
+	// Additional fields for agent configuration
 	InitialPrompt   *string         `json:"initial_prompt,omitempty"`   // Initial prompt for the agent
 	MaxTurns        *int            `json:"max_turns,omitempty"`        // Maximum turns for the agent
 	Background      *bool           `json:"background,omitempty"`       // Run agent in background
@@ -239,6 +239,14 @@ func (p *PermissionUpdate) ToDict() map[string]interface{} {
 type ToolPermissionContext struct {
 	Signal      interface{}        `json:"signal,omitempty"`      // Future: abort signal support
 	Suggestions []PermissionUpdate `json:"suggestions,omitempty"` // Permission suggestions from CLI
+
+	// ToolUseID is the unique identifier for this specific tool call within the assistant message.
+	// Multiple tool calls in the same assistant message will have different tool_use_ids.
+	ToolUseID *string `json:"tool_use_id,omitempty"`
+
+	// AgentID is the sub-agent identifier when running within the context of a Task-spawned sub-agent.
+	// Present only when the tool call originates from inside a sub-agent; absent on the main thread.
+	AgentID *string `json:"agent_id,omitempty"`
 }
 
 // PermissionResultAllow represents an allow permission result.
@@ -976,6 +984,12 @@ type AssistantMessage struct {
 	ParentToolUseID *string                `json:"parent_tool_use_id,omitempty"`
 	Error           *AssistantMessageError `json:"error,omitempty"`
 	Usage           map[string]interface{} `json:"usage,omitempty"` // Per-turn usage from CLI (v0.1.48+)
+
+	// Additional fields preserved from CLI output (v0.1.50+)
+	MessageID  *string `json:"message_id,omitempty"`  // Anthropic API message ID
+	StopReason *string `json:"stop_reason,omitempty"` // Per-turn stop reason (end_turn, tool_use, etc.)
+	SessionID  *string `json:"session_id,omitempty"`  // Session identifier
+	UUID       *string `json:"uuid,omitempty"`        // SDK message UUID for transcript correlation
 }
 
 // SystemMessage represents a system message with metadata.
@@ -1053,6 +1067,12 @@ type ResultMessage struct {
 	Usage            map[string]interface{} `json:"usage,omitempty"`
 	Result           *string                `json:"result,omitempty"`
 	StructuredOutput interface{}            `json:"structured_output,omitempty"`
+
+	// Additional fields preserved from CLI output (v0.1.50+)
+	ModelUsage        map[string]interface{} `json:"model_usage,omitempty"`        // Per-model usage breakdown
+	PermissionDenials []interface{}          `json:"permission_denials,omitempty"` // List of denied permission requests
+	Errors            []string               `json:"errors,omitempty"`             // Error diagnostics from CLI
+	UUID              *string                `json:"uuid,omitempty"`               // SDK message UUID for transcript correlation
 }
 
 // StreamEvent represents a stream event for partial message updates during streaming.

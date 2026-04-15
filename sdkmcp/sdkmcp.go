@@ -233,7 +233,7 @@ func Schema(properties map[string]interface{}, required []string) map[string]int
 // SimpleSchema creates a JSON Schema from a simple type map.
 //
 // This function provides a concise way to define schemas when you don't need
-// descriptions for individual properties. It's inspired by upstream SDK's
+// descriptions for individual properties. It's inspired by standard SDK's
 // type-to-schema conversion.
 //
 // Supported type strings:

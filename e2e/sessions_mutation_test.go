@@ -81,7 +81,7 @@ func TestDeleteSessionNotFound(t *testing.T) {
 
 // TestDeleteSessionCascadeSubagentDir tests that DeleteSession removes
 // the sibling {session_id}/ subdirectory that holds subagent transcripts.
-// This matches Python SDK v0.1.59 behavior.
+// Cascade delete behavior for subagent transcript directory
 func TestDeleteSessionCascadeSubagentDir(t *testing.T) {
 	SkipIfNoAPIKey(t)
 

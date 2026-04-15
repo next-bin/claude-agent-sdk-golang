@@ -28,7 +28,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// Constants matching upstream SDK
+// Constants matching standard SDK
 const (
 	// LiteReadBufSize is the size of the head/tail buffer for lite metadata reads.
 	LiteReadBufSize = 65536
@@ -39,7 +39,6 @@ const (
 )
 
 // nfcNormalize applies Unicode NFC normalization to a string.
-// This matches upstream's unicodedata.normalize("NFC", s) behavior.
 func nfcNormalize(s string) string {
 	// Fast path: if string is already valid UTF-8 and ASCII, no normalization needed
 	// Most paths are ASCII, so this avoids unnecessary work
@@ -368,7 +367,7 @@ func normalizePath(d string) string {
 		resolved = d
 	}
 
-	// Normalize unicode to NFC form (matching upstream's unicodedata.normalize("NFC", ...))
+	// Normalize unicode to NFC form (standard text normalization)
 	return nfcNormalize(resolved)
 }
 
@@ -1640,7 +1639,7 @@ func tryDeleteWithCascade(path, sessionID string) bool {
 		return true // Not a directory or doesn't exist
 	}
 
-	// Safe to remove - matches upstream's shutil.rmtree(ignore_errors=True)
+	// Safe to remove subagent directory
 	_ = os.RemoveAll(subagentDir)
 	return true
 }

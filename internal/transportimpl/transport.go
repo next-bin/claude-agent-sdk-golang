@@ -527,7 +527,8 @@ func (t *SubprocessCLITransport) buildCommand() []string {
 				resolvedMaxThinkingTokens = &val
 			}
 		case types.ThinkingConfigEnabled:
-			cmd = append(cmd, "--thinking", "enabled")
+			// Note: "enabled" type does NOT use --thinking flag
+			// Only passes --max-thinking-tokens
 			resolvedMaxThinkingTokens = &v.BudgetTokens
 		case types.ThinkingConfigDisabled:
 			cmd = append(cmd, "--thinking", "disabled")
